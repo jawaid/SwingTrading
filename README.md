@@ -37,6 +37,7 @@ Everything local lives in `data/`, which git ignores:
 uv run swing refresh-universe      # rebuild symbol list + metadata cache (weekly)
 uv run swing backfill              # download ~400 trading days of history
 uv run swing update-prices         # fetch only sessions missing since the last update
+uv run swing rank [--date YYYY-MM-DD] [--top 25]   # SCTR rankings from stored prices
 uv run swing run [--date YYYY-MM-DD] [--dry-run]   # the daily pipeline
 uv run swing app                   # launch the Streamlit app
 ```

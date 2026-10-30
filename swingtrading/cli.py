@@ -7,7 +7,7 @@ import logging
 import sqlite3
 import sys
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from swingtrading import db, market_calendar
@@ -30,6 +30,9 @@ def _build_parser() -> argparse.ArgumentParser:
     backfill.add_argument("--tickers", nargs="+", help="only these tickers (default: universe)")
     update = sub.add_parser("update-prices", help="fetch only sessions missing since last run")
     update.add_argument("--tickers", nargs="+", help="only these tickers (default: universe)")
+    rank = sub.add_parser("rank", help="compute SCTR rankings from stored prices")
+    rank.add_argument("--date", help="session date YYYY-MM-DD (default: last completed session)")
+    rank.add_argument("--top", type=int, default=25, help="how many names to print")
     run = sub.add_parser("run", help="run the daily pipeline")
     run.add_argument("--date", help="session date YYYY-MM-DD (default: last completed session)")
     run.add_argument("--dry-run", action="store_true", help="compute and print, write nothing")
@@ -91,6 +94,31 @@ def prices_cmd(
     return 0
 
 
+def rank_cmd(conn: sqlite3.Connection, settings: Settings, day: str | None, top: int) -> int:
+    from swingtrading.ranking import rank_session, shortlist
+    from swingtrading.universe import universe_tickers
+
+    as_of = (
+        date.fromisoformat(day)
+        if day
+        else market_calendar.last_completed_session(None, settings.schedule.close_buffer_minutes)
+    )
+    tickers = universe_tickers(conn)
+    ranked = rank_session(conn, settings, tickers, as_of)
+    if ranked.empty:
+        print(f"Nothing ranked for {as_of}. Run `swing backfill` first.")
+        return 1
+    short = shortlist(ranked, settings.ranking.shortlist_pct)
+    print(
+        f"\nSCTR for {as_of}: {len(ranked)} ranked, shortlist (top "
+        f"{settings.ranking.shortlist_pct:g}%) = {len(short)} names\n"
+    )
+    cols = ["ticker", "sctr", "raw_score", "long_ema_pct", "long_roc", "mid_ema_pct", "mid_roc",
+            "ppo_slope", "rsi"]  # fmt: skip
+    print(ranked[cols].head(top).to_string(index=False, float_format=lambda v: f"{v:.2f}"))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     settings = load_settings(args.settings)
@@ -106,6 +134,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "refresh-universe":
             return refresh_universe_cmd(conn, settings)
+        if args.command == "rank":
+            return rank_cmd(conn, settings, args.date, args.top)
         if args.command in ("backfill", "update-prices"):
             return prices_cmd(conn, settings, args.tickers, full=args.command == "backfill")
     finally:
