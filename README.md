@@ -42,6 +42,20 @@ uv run swing app                   # launch the Streamlit app
 
 These are being built phase by phase; a command that isn't built yet says which phase adds it.
 
+### Universe refresh
+
+`swing refresh-universe` downloads the NASDAQ Trader symbol files (cached per day), drops symbols by the rules in CLAUDE.md, and records the reason for every dropped symbol in `symbols.excluded_reason`. It runs in three passes so the slow part touches as few tickers as possible:
+
+1. Checks that need only the symbol files: test issues, exchange, preferred/warrant/unit/right symbols and names, ADRs, leveraged and inverse ETF names.
+2. One batched price download for the survivors: at least 250 sessions of history and $20M average daily dollar volume.
+3. Yahoo metadata, one ticker at a time, only for names that passed: market cap, ETF assets, REITs, SPACs, leveraged fund categories. Metadata is cached in the database for 7 days, so a weekly refresh mostly reuses it.
+
+A first run takes roughly an hour (about half on prices, half on metadata). It prints a count per exclusion reason at the end. To see why a ticker was dropped:
+
+```bash
+sqlite3 data/swing.db "SELECT ticker, excluded_reason FROM symbols WHERE ticker = 'BRK.B'"
+```
+
 ## Development
 
 ```bash

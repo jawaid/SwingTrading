@@ -117,6 +117,13 @@ MIGRATIONS: list[str] = [
         error          TEXT
     );
     """,
+    # 2: universe prefilter stats and metadata cache timestamp on symbols
+    """
+    ALTER TABLE symbols ADD COLUMN total_revenue REAL;
+    ALTER TABLE symbols ADD COLUMN avg_dollar_volume REAL;
+    ALTER TABLE symbols ADD COLUMN history_sessions INTEGER;
+    ALTER TABLE symbols ADD COLUMN metadata_updated_at TEXT;
+    """,
 ]
 
 SCHEMA_VERSION = len(MIGRATIONS)

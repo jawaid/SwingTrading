@@ -1,5 +1,5 @@
 # Local data: database, logs, caches
-data/
+/data/
 *.db
 *.db-journal
 

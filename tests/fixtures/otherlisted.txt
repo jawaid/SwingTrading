@@ -1,0 +1,16 @@
+ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol
+SPY|SPDR S&P 500 ETF Trust|P|SPY|Y|100|N|SPY
+JPST|JPMorgan Ultra-Short Income ETF|P|JPST|Y|100|N|JPST
+SDS|ProShares UltraShort S&P500|P|SDS|Y|100|N|SDS
+SOXL|Direxion Daily Semiconductor Bull 3X Shares|P|SOXL|Y|100|N|SOXL
+LEVCAT|Example Daily Target Fund|P|LEVCAT|Y|100|N|LEVCAT
+PFFD|Global X U.S. Preferred ETF|P|PFFD|Y|100|N|PFFD
+SMLETF|Small Example ETF|P|SMLETF|Y|100|N|SMLETF
+BZXETF|Example Cboe Listed ETF|Z|BZXETF|Y|100|N|BZXETF
+ABR$D|Arbor Realty Trust 6.375% Series D Cumulative Redeemable Preferred Stock|N|ABRpD|N|100|N|ABR-D
+BRK.B|Berkshire Hathaway Inc. New Common Stock|N|BRK.B|N|100|N|BRK.B
+O|Realty Income Corporation Common Stock|N|O|N|100|N|O
+EPD|Enterprise Products Partners L.P. Common Units|N|EPD|N|100|N|EPD
+NOINFO|No Info Inc Common Stock|N|NOINFO|N|100|N|NOINFO
+AAPL|Apple duplicate row from other file|N|AAPL|N|100|N|AAPL
+File Creation Time: 1028202618:01||||||

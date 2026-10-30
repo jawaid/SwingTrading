@@ -59,6 +59,7 @@ data:
   max_retries: 3
   retry_backoff_seconds: 2.0
   info_throttle_seconds: 0.5
+  request_timeout_seconds: 60.0    # give up on a hung Yahoo call (price batches get 4x)
 
 schedule:
   timezone: America/New_York

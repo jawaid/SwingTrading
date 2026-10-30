@@ -8,6 +8,7 @@ EXPECTED_COLUMNS = {
     "symbols": [
         "ticker", "name", "exchange", "is_etf", "quote_type", "sector", "industry",
         "fund_category", "market_cap", "total_assets", "excluded_reason", "updated_at",
+        "total_revenue", "avg_dollar_volume", "history_sessions", "metadata_updated_at",
     ],
     "prices": ["ticker", "date", "open", "high", "low", "close", "volume", "adjusted"],
     "stop_history": ["pick_id", "date", "close", "stop"],
@@ -73,7 +74,7 @@ def test_new_migration_is_applied(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "MIGRATIONS", [*db.MIGRATIONS, extra])
     monkeypatch.setattr(db, "SCHEMA_VERSION", len(db.MIGRATIONS))
     conn = db.connect(path)
-    assert db.schema_version(conn) == 2
+    assert db.schema_version(conn) == len(db.MIGRATIONS)
     assert "notes" in db.column_names(conn, "picks")
     conn.close()
 
@@ -88,7 +89,7 @@ def test_failed_migration_rolls_back(tmp_path, monkeypatch):
         db.connect(path)
     monkeypatch.undo()
     conn = db.connect(path)
-    assert db.schema_version(conn) == 1
+    assert db.schema_version(conn) == db.SCHEMA_VERSION
     assert "notes" not in db.column_names(conn, "picks")
     conn.close()
 

@@ -1,0 +1,16 @@
+Symbol|Security Name|Market Category|Test Issue|Financial Status|Round Lot Size|ETF|NextShares
+AAPL|Apple Inc. - Common Stock|Q|N|N|100|N|N
+QQQ|Invesco QQQ Trust, Series 1|G|N|N|100|Y|N
+TQQQ|ProShares UltraPro QQQ|G|N|N|100|Y|N
+SQQQ|ProShares UltraPro Short QQQ|G|N|N|100|Y|N
+BIDU|Baidu, Inc. - American Depositary Shares, each representing eight Class A Ordinary Shares|Q|N|N|100|N|N
+SPCXU|Space Acquisition Corp I - Units|G|N|N|100|N|N
+SPCXW|Space Acquisition Corp I - Warrants|G|N|N|100|N|N
+SPCXR|Space Acquisition Corp I - Rights|G|N|N|100|N|N
+SPCX|Space Acquisition Corp I - Class A Ordinary Shares|G|N|N|100|N|N
+ZXZZT|NASDAQ TEST STOCK|G|Y|N|100|N|N
+TINY|Tiny Corp - Common Stock|S|N|N|100|N|N
+NEWCO|NewCo Inc - Common Stock|Q|N|N|100|N|N
+SMALL|Small Cap Inc - Common Stock|Q|N|N|100|N|N
+VCSH|Vanguard Short-Term Corporate Bond ETF|G|N|N|100|Y|N
+File Creation Time: 1028202618:01|||||||

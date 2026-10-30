@@ -117,6 +117,7 @@ class DataSettings(_Section):
     max_retries: int = Field(3, ge=0)
     retry_backoff_seconds: float = Field(2.0, ge=0)
     info_throttle_seconds: float = Field(0.5, ge=0)
+    request_timeout_seconds: float = Field(60.0, gt=0)
 
 
 class ScheduleSettings(_Section):
