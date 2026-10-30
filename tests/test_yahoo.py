@@ -56,7 +56,8 @@ def test_failed_batch_does_not_abort(monkeypatch):
 
     monkeypatch.setattr(provider, "_download", flaky)
     out = provider.history(["BAD", "GOOD"], date(2026, 10, 28), date(2026, 10, 28))
-    assert calls == ["BAD", "BAD", "GOOD"]  # retried once, then skipped
+    # Retried once, skipped, then re-requested once more (and retried) after the batches.
+    assert calls == ["BAD", "BAD", "GOOD", "BAD", "BAD"]
     assert out["ticker"].tolist() == ["GOOD"]
 
 
@@ -129,3 +130,34 @@ def test_call_with_timeout():
     with pytest.raises(TimeoutError):
         yahoo._call_with_timeout(lambda: release.wait(5), 0.05)
     release.set()
+
+
+def test_share_classes_use_yahoo_symbols(monkeypatch):
+    provider = yahoo.YahooPriceProvider(DataSettings(max_retries=0))
+
+    def fake_download(tickers, start, end):
+        # yfinance answers with Yahoo's spelling of the symbol.
+        return _yf_frame([yahoo.to_yahoo(t) for t in tickers], ["2026-10-28"])
+
+    monkeypatch.setattr(provider, "_download", fake_download)
+    out = provider.history(["BRK.B", "AAPL"], date(2026, 10, 28), date(2026, 10, 28))
+    assert sorted(out["ticker"]) == ["AAPL", "BRK.B"]
+    assert yahoo.to_yahoo("BRK.B") == "BRK-B"
+
+
+def test_tickers_missing_from_a_batch_are_requested_again(monkeypatch):
+    provider = yahoo.YahooPriceProvider(
+        DataSettings(batch_size=3, max_retries=2, retry_backoff_seconds=0)
+    )
+    requests = []
+
+    def flaky(tickers, start, end):
+        requests.append(list(tickers))
+        # First call: B silently fails, DEAD never has data.
+        ok = [t for t in tickers if t != "DEAD" and not (t == "B" and len(requests) == 1)]
+        return _yf_frame(ok, ["2026-10-28"]) if ok else pd.DataFrame()
+
+    monkeypatch.setattr(provider, "_download", flaky)
+    out = provider.history(["A", "B", "DEAD"], date(2026, 10, 28), date(2026, 10, 28))
+    assert sorted(out["ticker"]) == ["A", "B"]
+    assert requests == [["A", "B", "DEAD"], ["B", "DEAD"], ["DEAD"]]

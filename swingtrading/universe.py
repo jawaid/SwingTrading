@@ -44,6 +44,9 @@ SMALL_ETF_ASSETS = "etf_assets_below_min"
 NOT_LISTED = "not_listed"
 
 _SPECIAL_SYMBOL_CHARS = set("$.-+=^")
+# Share classes such as BRK.B or BF.A are ordinary stock. SPAC warrants, units and rights
+# use .W, .U and .R, so those suffixes stay excluded.
+_SHARE_CLASS = re.compile(r"[A-Z]+\.[A-QSTVXYZ]")
 _SPECIAL_NAME = re.compile(r"\b(?:preferred|pfd|warrants?|rights?|units?)\b", re.IGNORECASE)
 # Units that are ordinary equity (MLPs, LPs, royalty trusts), not SPAC units; removed
 # before the special-name check.
@@ -82,7 +85,7 @@ def symbol_exclusion(row: SymbolRow, exchanges: Iterable[str]) -> str | None:
         return TEST_ISSUE
     if row.exchange not in set(exchanges):
         return EXCHANGE
-    if _SPECIAL_SYMBOL_CHARS & set(row.ticker):
+    if _SPECIAL_SYMBOL_CHARS & set(row.ticker) and not _SHARE_CLASS.fullmatch(row.ticker):
         return SPECIAL_SYMBOL
     if _ADR.search(row.name):
         return ADR

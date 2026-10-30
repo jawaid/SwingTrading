@@ -56,6 +56,11 @@ def _call_with_timeout(fn: Callable[[], Any], seconds: float) -> Any:
     return result["value"]
 
 
+def to_yahoo(ticker: str) -> str:
+    """NASDAQ Trader writes share classes as BRK.B; Yahoo uses BRK-B."""
+    return ticker.replace(".", "-")
+
+
 def _with_retries(fn: Callable[[], Any], what: str, settings: DataSettings) -> Any:
     for attempt in range(settings.max_retries + 1):
         try:
@@ -96,7 +101,7 @@ class YahooPriceProvider:
 
     def _download(self, tickers: list[str], start: date, end: date) -> pd.DataFrame:
         return yf.download(
-            tickers,
+            [to_yahoo(t) for t in tickers],
             start=start.isoformat(),
             end=(end + timedelta(days=1)).isoformat(),  # yfinance's end is exclusive
             auto_adjust=True,
@@ -107,27 +112,50 @@ class YahooPriceProvider:
             progress=False,
         )
 
+    def _fetch(self, tickers: list[str], start: date, end: date, label: str) -> pd.DataFrame:
+        try:
+            raw = _with_retries(
+                lambda: _call_with_timeout(
+                    lambda: self._download(tickers, start, end),
+                    self.settings.request_timeout_seconds * 4,
+                ),
+                label,
+                self.settings,
+            )
+        except Exception as exc:
+            log.error("%s failed after retries: %s", label, exc)
+            return pd.DataFrame(columns=PRICE_COLUMNS)
+        long = _to_long(raw)
+        long["ticker"] = long["ticker"].map(dict(zip(map(to_yahoo, tickers), tickers, strict=True)))
+        # Never return bars past the requested end (e.g. a partial current-day bar).
+        return long[(long["date"] >= start) & (long["date"] <= end)]
+
     def history(self, tickers: list[str], start: date, end: date) -> pd.DataFrame:
         size = self.settings.batch_size
         batches = [tickers[i : i + size] for i in range(0, len(tickers), size)]
         parts = []
         for n, batch in enumerate(batches, 1):
             log.info("Price batch %d/%d (%d tickers)", n, len(batches), len(batch))
-            try:
-                raw = _with_retries(
-                    lambda b=batch: _call_with_timeout(
-                        lambda: self._download(b, start, end),
-                        self.settings.request_timeout_seconds * 4,
-                    ),
-                    f"price batch {n}",
-                    self.settings,
-                )
-            except Exception as exc:
-                log.error("Price batch %d failed after retries: %s", n, exc)
-                continue
-            long = _to_long(raw)
-            # Never return bars past the requested end (e.g. a partial current-day bar).
-            parts.append(long[(long["date"] >= start) & (long["date"] <= end)])
+            parts.append(self._fetch(batch, start, end, f"price batch {n}"))
+        got = set(pd.concat(parts)["ticker"]) if parts else set()
+
+        # yfinance reports per-ticker failures (e.g. a network blip mid-batch) as missing
+        # columns rather than errors, so ask again for whatever didn't come back.
+        missing = [t for t in tickers if t not in got]
+        for attempt in range(1, self.settings.max_retries + 1):
+            if not missing:
+                break
+            log.info("Re-requesting %d tickers with no data (attempt %d)", len(missing), attempt)
+            time.sleep(self.settings.retry_backoff_seconds * 2 ** (attempt - 1))
+            for i in range(0, len(missing), size):
+                chunk = missing[i : i + size]
+                parts.append(self._fetch(chunk, start, end, f"re-request {attempt}"))
+            got = set(pd.concat(parts)["ticker"])
+            missing = [t for t in missing if t not in got]
+        if missing:
+            log.info("%d tickers have no price data", len(missing))
+
+        parts = [p for p in parts if not p.empty]
         if not parts:
             return pd.DataFrame(columns=PRICE_COLUMNS)
         return pd.concat(parts, ignore_index=True)
@@ -170,7 +198,7 @@ class YahooMetadataProvider:
     def _info(self, ticker: str) -> dict[str, Any]:
         self._throttle()
         return _call_with_timeout(
-            lambda: yf.Ticker(ticker).info, self.settings.request_timeout_seconds
+            lambda: yf.Ticker(to_yahoo(ticker)).info, self.settings.request_timeout_seconds
         )
 
     def _checked_info(self, ticker: str) -> dict[str, Any]:

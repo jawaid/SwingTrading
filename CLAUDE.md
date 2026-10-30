@@ -82,7 +82,7 @@ uv run swing app                   # launch Streamlit
 - Liquidity: 50-day average dollar volume (close × volume) >= $20M.
 - History: at least 250 trading days of prices (SCTR requirement).
 - Exclude:
-  - **Preferreds, warrants, units, rights**: symbols containing `$`, `.`, `-`, `+`, `=`, `^`, or names matching preferred/warrant/unit/right/depositary-share-of-preferred.
+  - **Preferreds, warrants, units, rights**: symbols containing `$`, `.`, `-`, `+`, `=`, `^` (except share classes written as a single letter after a dot, such as `BRK.B` or `BF.A`; `.W`, `.U` and `.R` stay excluded), or names matching preferred/warrant/unit/right/depositary-share-of-preferred.
   - **ADRs**: security name contains "American Depositary" / "ADR" / "ADS".
   - **REITs**: Yahoo industry starts with "REIT".
   - **SPACs**: Yahoo industry "Shell Companies", or names like "Acquisition Corp" with no revenue.

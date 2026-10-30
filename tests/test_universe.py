@@ -30,6 +30,7 @@ PRICES = {
     "SPCX": LIQUID,
     "O": LIQUID,
     "EPD": LIQUID,
+    "BRK.B": LIQUID,
     "SMALL": LIQUID,
     "NOINFO": LIQUID,
     "TINY": (300, 5.0, 100_000),  # $0.5M/day
@@ -54,6 +55,7 @@ METADATA = {
     "SPCX": TickerMetadata(quote_type="EQUITY", industry="Shell Companies", market_cap=3e9),
     "O": TickerMetadata(quote_type="EQUITY", industry="REIT - Retail", market_cap=50e9),
     "EPD": TickerMetadata(quote_type="EQUITY", industry="Oil & Gas Midstream", market_cap=60e9),
+    "BRK.B": TickerMetadata(quote_type="EQUITY", industry="Insurance", market_cap=1e12),
     "SMALL": TickerMetadata(quote_type="EQUITY", industry="Software", market_cap=1e9),
     # NOINFO: Yahoo returns nothing
 }
@@ -83,7 +85,7 @@ EXPECTED = {
     "SMLETF": u.SMALL_ETF_ASSETS,
     "BZXETF": u.EXCHANGE,
     "ABR$D": u.SPECIAL_SYMBOL,
-    "BRK.B": u.SPECIAL_SYMBOL,
+    "BRK.B": None,
     "O": u.REIT,
     "NOINFO": u.NO_METADATA,
 }
@@ -147,14 +149,14 @@ def _refresh(conn, rows, now=NOW, meta=None, prices=None):
 def test_every_symbol_gets_the_expected_reason(conn, rows):
     counts, _, _ = _refresh(conn, rows)
     assert _reasons(conn) == EXPECTED
-    assert counts["included"] == 7
+    assert counts["included"] == 8
     assert u.universe_tickers(conn) == sorted(t for t, r in EXPECTED.items() if r is None)
 
 
 def test_cheap_checks_run_before_downloads_and_metadata(conn, rows):
     _, prices, meta = _refresh(conn, rows)
     symbol_dropped = {"TQQQ", "SQQQ", "SDS", "SOXL", "BIDU", "SPCXU", "SPCXW", "SPCXR"}
-    symbol_dropped |= {"ZXZZT", "BZXETF", "ABR$D", "BRK.B"}
+    symbol_dropped |= {"ZXZZT", "BZXETF", "ABR$D"}
     assert not symbol_dropped & set(prices.requested)
     # Ticker.info is only called for names that passed the dollar-volume prefilter.
     assert not {"TINY", "NEWCO"} & set(meta.calls)
@@ -219,9 +221,16 @@ def test_ordinary_names_are_kept(name):
     assert u.symbol_exclusion(_row(name=name), ["N"]) is None
 
 
-@pytest.mark.parametrize("ticker", ["ABC$A", "ABC.WS", "ABC-U", "ABC+", "ABC=", "ABC^"])
+@pytest.mark.parametrize(
+    "ticker", ["ABC$A", "ABC.WS", "ABC.W", "ABC.U", "ABC.R", "ABC-U", "ABC+", "ABC=", "ABC^"]
+)
 def test_special_symbol_characters(ticker):
     assert u.symbol_exclusion(_row(ticker=ticker), ["N"]) == u.SPECIAL_SYMBOL
+
+
+@pytest.mark.parametrize("ticker", ["BRK.B", "BF.A", "MKC.V", "CIG.C"])
+def test_share_classes_are_kept(ticker):
+    assert u.symbol_exclusion(_row(ticker=ticker), ["N"]) is None
 
 
 @pytest.mark.parametrize(
