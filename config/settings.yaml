@@ -1,0 +1,66 @@
+# SwingTrading settings. Every threshold used by the logic lives here.
+# The About and settings screen edits this file; values are validated by swingtrading/config.py.
+
+paths:
+  db_path: data/swing.db
+  log_dir: data/logs
+  cache_dir: data/cache
+
+universe:
+  exchanges: [Q, N, A, P]          # NASDAQ, NYSE, NYSE American, NYSE Arca
+  min_market_cap: 2000000000       # stocks: Yahoo marketCap >= $2B
+  min_etf_total_assets: 2000000000 # ETFs: Yahoo totalAssets >= $2B
+  min_avg_dollar_volume: 20000000  # 50-day average close x volume >= $20M
+  dollar_volume_period: 50
+  min_history_sessions: 250        # SCTR needs ~250 sessions of history
+  metadata_refresh_days: 7         # refresh Ticker.info cache weekly
+
+ranking:
+  shortlist_pct: 15                # scan the top N% by SCTR
+  long_ema_period: 200
+  long_roc_period: 125
+  mid_ema_period: 50
+  mid_roc_period: 20
+  ppo_fast: 12
+  ppo_slow: 26
+  ppo_signal: 9
+  ppo_slope_period: 3
+  rsi_period: 14
+  weights:                         # percent of raw score; must sum to 100
+    long_ema: 30
+    long_roc: 30
+    mid_ema: 15
+    mid_roc: 15
+    ppo_slope: 5
+    rsi: 5
+
+setup:
+  detector: pullback_pivot
+  swing_high_lookback: 20          # swing high within the last N sessions
+  pullback_min_pct: 3.0
+  pullback_max_pct: 12.0
+  pullback_min_atr: 1.0
+  pullback_max_atr: 4.0
+  max_pullback_sessions: 10
+  down_volume_max_ratio: 1.0       # avg down-day volume / 50-day avg volume must be below this
+  volume_avg_period: 50
+  trend_ema_period: 50             # no close below this EMA during the pullback
+  pivot_close_range_min: 0.5       # close in the upper half of the day's range
+  pivot_volume_period: 20
+  pivot_volume_min_ratio: 1.0      # pivot volume >= 20-day average
+
+stops:
+  atr_period: 14
+  atr_mult: 2.5
+
+data:
+  backfill_sessions: 400
+  batch_size: 200
+  max_retries: 3
+  retry_backoff_seconds: 2.0
+  info_throttle_seconds: 0.5
+
+schedule:
+  timezone: America/New_York
+  run_time: "17:30"                # Monday-Friday, US Eastern
+  close_buffer_minutes: 30         # a session counts as complete this long after the close

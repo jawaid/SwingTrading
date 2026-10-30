@@ -1,0 +1,29 @@
+# Local data: database, logs, caches
+data/
+*.db
+*.db-journal
+
+# Secrets
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Streamlit local secrets
+.streamlit/secrets.toml
+
+# macOS
+.DS_Store
