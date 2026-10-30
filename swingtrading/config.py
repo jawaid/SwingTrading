@@ -71,7 +71,7 @@ class RankingSettings(_Section):
     ppo_fast: PositiveInt = 12
     ppo_slow: PositiveInt = 26
     ppo_signal: PositiveInt = 9
-    ppo_slope_period: int = Field(3, ge=2)
+    ppo_slope_period: PositiveInt = 3
     rsi_period: PositiveInt = 14
     weights: RankingWeights = Field(default_factory=RankingWeights)
 

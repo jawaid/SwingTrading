@@ -95,7 +95,7 @@ Raw score components:
 - Long-term (60%): % above/below 200-day EMA (30%), 125-day rate of change (30%).
 - Mid-term (30%): % above/below 50-day EMA (15%), 20-day rate of change (15%).
 - Short-term (10%): 3-day slope of PPO(12,26,9) histogram (5%), 14-day RSI (5%).
-- PPO histogram slope: 3-day linear regression slope; slope > 1 → 5 points, slope < −1 → 0 points, otherwise (slope + 1) × 2.5.
+- PPO histogram slope: rise over run per StockCharts ChartSchool, (histogram today − histogram 3 sessions ago) / 3; slope > 1 → 5 points, slope < −1 → 0 points, otherwise (slope + 1) × 2.5.
 - RSI contributes RSI × 0.05.
 - Final SCTR = percentile rank of raw score across the entire universe that day, scaled 0–99.99.
 - Verify the formula against StockCharts ChartSchool "StockCharts Technical Rank (SCTR)" before finalizing, and add a test.

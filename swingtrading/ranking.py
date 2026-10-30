@@ -4,7 +4,8 @@ Raw score (weights from settings, StockCharts defaults shown):
   long term  60%: % above/below 200-day EMA (30%), 125-day ROC (30%)
   mid term   30%: % above/below 50-day EMA (15%), 20-day ROC (15%)
   short term 10%: 3-day slope of the PPO(12,26,9) histogram (5%), 14-day RSI (5%)
-Each component contributes value x weight, except the PPO histogram slope:
+Each component contributes value x weight, except the PPO histogram slope, which is
+the 3-day change in the histogram divided by 3 (ChartSchool's rise over run) and scores
   slope > 1 -> full weight, slope < -1 -> 0, otherwise (slope + 1) / 2 x weight.
 The SCTR is the raw score's percentile rank across the whole universe that day.
 """
@@ -40,7 +41,7 @@ def components(close: pd.Series, cfg: RankingSettings) -> pd.DataFrame:
             "long_roc": ind.roc(close, cfg.long_roc_period),
             "mid_ema_pct": ind.pct_from(close, ind.ema(close, cfg.mid_ema_period)),
             "mid_roc": ind.roc(close, cfg.mid_roc_period),
-            "ppo_slope": ind.linreg_slope(hist, cfg.ppo_slope_period),
+            "ppo_slope": ind.change_slope(hist, cfg.ppo_slope_period),
             "rsi": ind.rsi(close, cfg.rsi_period),
         },
         index=close.index,

@@ -108,3 +108,12 @@ def test_indicators_are_pure():
     ind.ema(close, 3), ind.rsi(close, 3), ind.ppo(close, 2, 3, 2), ind.linreg_slope(close)
     pd.testing.assert_series_equal(close, before)
     assert not math.isnan(ind.ema(close, 3).iloc[-1])
+
+
+def test_change_slope_is_rise_over_run():
+    hist = pd.Series([0.3, -0.6, 0.9, 1.2, 0.0])
+    out = ind.change_slope(hist, 3)
+    assert out.iloc[:3].isna().all()
+    assert out.iloc[3:].tolist() == pytest.approx([(1.2 - 0.3) / 3, (0.0 + 0.6) / 3])
+    with pytest.raises(ValueError):
+        ind.change_slope(hist, 0)

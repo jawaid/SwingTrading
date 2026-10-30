@@ -76,6 +76,13 @@ def atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> 
     return wilder(true_range(high, low, close), period)
 
 
+def change_slope(values: pd.Series, period: int = 3) -> pd.Series:
+    """Rise over run: change over `period` bars divided by `period` (ChartSchool's slope)."""
+    if period < 1:
+        raise ValueError("period must be at least 1")
+    return (values - values.shift(period)) / period
+
+
 def linreg_slope(values: pd.Series, points: int = 3) -> pd.Series:
     """Slope per bar of the least-squares line through the last `points` values."""
     if points < 2:

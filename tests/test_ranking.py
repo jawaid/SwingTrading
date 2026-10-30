@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from swingtrading import db, market_calendar
+from swingtrading import indicators as ind
 from swingtrading import ranking as r
 from swingtrading.config import RankingSettings, Settings
 from swingtrading.data.provider import PRICE_COLUMNS
@@ -39,6 +40,13 @@ def _trend(daily_pct: float, n: int = 300, seed: int = 0) -> np.ndarray:
 )
 def test_ppo_slope_points(slope, points):
     assert r.ppo_slope_points(slope, 5) == pytest.approx(points)
+
+
+def test_ppo_slope_uses_three_day_change_over_three():
+    close = pd.Series(_trend(0.2, n=120))
+    comp = r.components(close, CFG)
+    hist = ind.ppo(close)["histogram"]
+    assert comp["ppo_slope"].iloc[-1] == pytest.approx((hist.iloc[-1] - hist.iloc[-4]) / 3)
 
 
 def test_score_hand_calculated():
