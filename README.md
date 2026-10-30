@@ -38,6 +38,7 @@ uv run swing refresh-universe      # rebuild symbol list + metadata cache (weekl
 uv run swing backfill              # download ~400 trading days of history
 uv run swing update-prices         # fetch only sessions missing since the last update
 uv run swing rank [--date YYYY-MM-DD] [--top 25]   # SCTR rankings from stored prices
+uv run swing scan [--date YYYY-MM-DD]              # setups in the stored shortlist (read-only)
 uv run swing run [--date YYYY-MM-DD] [--dry-run]   # the daily pipeline
 uv run swing app                   # launch the Streamlit app
 ```
@@ -65,6 +66,12 @@ sqlite3 data/swing.db "SELECT ticker, excluded_reason FROM symbols WHERE ticker 
 - Only fully completed sessions are stored: a session counts as complete `close_buffer_minutes` after its close, so there is never a partial current-day bar.
 - A new split or dividend changes every earlier adjusted price. Each update re-fetches the last few stored sessions; if a close moved by more than `adjustment_tolerance`, that ticker's whole history is reloaded so all of its bars share one adjustment basis.
 - Tickers with no data, a stale last bar, or missing sessions are logged and counted; they never stop the run.
+
+### Setups
+
+`swing scan` takes the stored SCTR shortlist for a session (run `swing rank` first) and prints every name where the configured detector fires, with its 0-100 setup score and details. It writes nothing; the daily run (Phase 7) is what turns setups into picks.
+
+The default detector, [swingtrading/setups/pullback_pivot.py](swingtrading/setups/pullback_pivot.py), is a **placeholder** for your own formula: a 3-12% (1-4 ATR) orderly pullback from a swing high in the last 20 sessions, holding the 50-day EMA, then a pivot day that closes above the prior day's high, in the upper half of its range, on above-average volume. Every threshold is in the `setup` section of settings.yaml. To use a different formula, write a class with a `name` and a `detect(df) -> SetupResult | None` method, register it in `DETECTORS` in [swingtrading/setups/base.py](swingtrading/setups/base.py), and set `setup.detector` to its name.
 
 ## Development
 

@@ -33,6 +33,8 @@ def _build_parser() -> argparse.ArgumentParser:
     rank = sub.add_parser("rank", help="compute SCTR rankings from stored prices")
     rank.add_argument("--date", help="session date YYYY-MM-DD (default: last completed session)")
     rank.add_argument("--top", type=int, default=25, help="how many names to print")
+    scan = sub.add_parser("scan", help="scan the stored shortlist for setups (writes nothing)")
+    scan.add_argument("--date", help="session date YYYY-MM-DD (default: last completed session)")
     run = sub.add_parser("run", help="run the daily pipeline")
     run.add_argument("--date", help="session date YYYY-MM-DD (default: last completed session)")
     run.add_argument("--dry-run", action="store_true", help="compute and print, write nothing")
@@ -94,15 +96,17 @@ def prices_cmd(
     return 0
 
 
+def _session(settings: Settings, day: str | None) -> date:
+    if day:
+        return date.fromisoformat(day)
+    return market_calendar.last_completed_session(None, settings.schedule.close_buffer_minutes)
+
+
 def rank_cmd(conn: sqlite3.Connection, settings: Settings, day: str | None, top: int) -> int:
     from swingtrading.ranking import rank_session, shortlist
     from swingtrading.universe import universe_tickers
 
-    as_of = (
-        date.fromisoformat(day)
-        if day
-        else market_calendar.last_completed_session(None, settings.schedule.close_buffer_minutes)
-    )
+    as_of = _session(settings, day)
     tickers = universe_tickers(conn)
     ranked = rank_session(conn, settings, tickers, as_of)
     if ranked.empty:
@@ -116,6 +120,34 @@ def rank_cmd(conn: sqlite3.Connection, settings: Settings, day: str | None, top:
     cols = ["ticker", "sctr", "raw_score", "long_ema_pct", "long_roc", "mid_ema_pct", "mid_roc",
             "ppo_slope", "rsi"]  # fmt: skip
     print(ranked[cols].head(top).to_string(index=False, float_format=lambda v: f"{v:.2f}"))
+    return 0
+
+
+def scan_cmd(conn: sqlite3.Connection, settings: Settings, day: str | None) -> int:
+    import pandas as pd
+
+    from swingtrading.prices import load_bars
+    from swingtrading.ranking import load_rankings, shortlist
+    from swingtrading.setups import make_detector, scan
+
+    as_of = _session(settings, day)
+    ranked = load_rankings(conn, as_of)
+    if ranked.empty:
+        print(f"No rankings for {as_of}. Run `swing rank --date {as_of}` first.")
+        return 1
+    short = shortlist(ranked, settings.ranking.shortlist_pct)
+    detector = make_detector(settings)
+    start = market_calendar.previous_session(as_of, settings.universe.min_history_sessions)
+    bars = load_bars(conn, short["ticker"].tolist(), start=start, end=as_of)
+    found = scan(bars, short["ticker"], detector, as_of)
+    print(f"\n{detector.name} on {as_of}: {len(found)} setups in a shortlist of {len(short)}\n")
+    if found:
+        sctr = short.set_index("ticker")["sctr"]
+        rows = [
+            {"ticker": t, "sctr": sctr[t], "score": r.score, **r.details} for t, r in found.items()
+        ]
+        table = pd.DataFrame(rows).sort_values(["score", "sctr"], ascending=False)
+        print(table.to_string(index=False, float_format=lambda v: f"{v:.2f}"))
     return 0
 
 
@@ -136,6 +168,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return refresh_universe_cmd(conn, settings)
         if args.command == "rank":
             return rank_cmd(conn, settings, args.date, args.top)
+        if args.command == "scan":
+            return scan_cmd(conn, settings, args.date)
         if args.command in ("backfill", "update-prices"):
             return prices_cmd(conn, settings, args.tickers, full=args.command == "backfill")
     finally:
