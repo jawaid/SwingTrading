@@ -55,6 +55,8 @@ stops:
 
 data:
   backfill_sessions: 400
+  adjustment_check_sessions: 5     # incremental updates re-fetch this many stored sessions...
+  adjustment_tolerance: 0.0005     # ...and reload a ticker's history if a close moved > 0.05%
   batch_size: 200
   max_retries: 3
   retry_backoff_seconds: 2.0

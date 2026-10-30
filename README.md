@@ -36,6 +36,7 @@ Everything local lives in `data/`, which git ignores:
 ```bash
 uv run swing refresh-universe      # rebuild symbol list + metadata cache (weekly)
 uv run swing backfill              # download ~400 trading days of history
+uv run swing update-prices         # fetch only sessions missing since the last update
 uv run swing run [--date YYYY-MM-DD] [--dry-run]   # the daily pipeline
 uv run swing app                   # launch the Streamlit app
 ```
@@ -55,6 +56,14 @@ A first run takes roughly an hour (about half on prices, half on metadata). It p
 ```bash
 sqlite3 data/swing.db "SELECT ticker, excluded_reason FROM symbols WHERE ticker = 'BRK.B'"
 ```
+
+### Prices
+
+`swing backfill` downloads the last `backfill_sessions` (400) sessions of split- and dividend-adjusted daily bars for every universe ticker, replacing whatever was stored. `swing update-prices` fetches only the sessions after each ticker's last stored bar; the daily run uses the same code. Both accept `--tickers AAPL MSFT` to limit the run.
+
+- Only fully completed sessions are stored: a session counts as complete `close_buffer_minutes` after its close, so there is never a partial current-day bar.
+- A new split or dividend changes every earlier adjusted price. Each update re-fetches the last few stored sessions; if a close moved by more than `adjustment_tolerance`, that ticker's whole history is reloaded so all of its bars share one adjustment basis.
+- Tickers with no data, a stale last bar, or missing sessions are logged and counted; they never stop the run.
 
 ## Development
 

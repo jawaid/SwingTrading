@@ -15,7 +15,6 @@ from swingtrading.config import Settings, load_settings
 
 # Commands that later build phases implement. Until then they say so and exit non-zero.
 _PENDING = {
-    "backfill": "Phase 3",
     "run": "Phase 7",
     "app": "Phase 8",
 }
@@ -27,7 +26,10 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("refresh-universe", help="rebuild the symbol list and metadata cache")
-    sub.add_parser("backfill", help="download price history for the universe")
+    backfill = sub.add_parser("backfill", help="download the full price history window")
+    backfill.add_argument("--tickers", nargs="+", help="only these tickers (default: universe)")
+    update = sub.add_parser("update-prices", help="fetch only sessions missing since last run")
+    update.add_argument("--tickers", nargs="+", help="only these tickers (default: universe)")
     run = sub.add_parser("run", help="run the daily pipeline")
     run.add_argument("--date", help="session date YYYY-MM-DD (default: last completed session)")
     run.add_argument("--dry-run", action="store_true", help="compute and print, write nothing")
@@ -69,6 +71,26 @@ def refresh_universe_cmd(conn: sqlite3.Connection, settings: Settings) -> int:
     return 0
 
 
+def prices_cmd(
+    conn: sqlite3.Connection, settings: Settings, tickers: list[str] | None, full: bool
+) -> int:
+    from swingtrading.data.yahoo import YahooPriceProvider
+    from swingtrading.prices import update_prices
+    from swingtrading.universe import universe_tickers
+
+    tickers = tickers or universe_tickers(conn)
+    if not tickers:
+        print("The universe is empty. Run `swing refresh-universe` first.")
+        return 1
+    now = datetime.now(UTC)
+    as_of = market_calendar.last_completed_session(now, settings.schedule.close_buffer_minutes)
+    result = update_prices(
+        conn, settings, YahooPriceProvider(settings.data), tickers, as_of, full=full, now=now
+    )
+    print(f"\nPrices through {as_of}: {result.summary()}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     settings = load_settings(args.settings)
@@ -84,6 +106,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "refresh-universe":
             return refresh_universe_cmd(conn, settings)
+        if args.command in ("backfill", "update-prices"):
+            return prices_cmd(conn, settings, args.tickers, full=args.command == "backfill")
     finally:
         conn.close()
     return 0

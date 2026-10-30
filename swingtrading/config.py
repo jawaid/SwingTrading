@@ -113,6 +113,8 @@ class StopSettings(_Section):
 
 class DataSettings(_Section):
     backfill_sessions: PositiveInt = 400
+    adjustment_check_sessions: PositiveInt = 5
+    adjustment_tolerance: float = Field(0.0005, gt=0)
     batch_size: int = Field(200, ge=1, le=500)
     max_retries: int = Field(3, ge=0)
     retry_backoff_seconds: float = Field(2.0, ge=0)
