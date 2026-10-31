@@ -15,7 +15,6 @@ from swingtrading.config import Settings, load_settings
 
 # Commands that later build phases implement. Until then they say so and exit non-zero.
 _PENDING = {
-    "run": "Phase 7",
     "app": "Phase 8",
 }
 
@@ -151,6 +150,23 @@ def scan_cmd(conn: sqlite3.Connection, settings: Settings, day: str | None) -> i
     return 0
 
 
+def run_cmd(conn: sqlite3.Connection, settings: Settings, day: str | None, dry_run: bool) -> int:
+    from swingtrading import notify, pipeline
+    from swingtrading.data.yahoo import YahooPriceProvider
+
+    target = date.fromisoformat(day) if day else None
+    reports = pipeline.run(
+        conn,
+        settings,
+        YahooPriceProvider(settings.data),
+        target=target,
+        dry_run=dry_run,
+        notifier=None if dry_run else notify.send,
+    )
+    print("\n" + pipeline.format_reports(reports, dry_run))
+    return 1 if any(r.status == "failed" for r in reports) else 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     settings = load_settings(args.settings)
@@ -168,6 +184,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return refresh_universe_cmd(conn, settings)
         if args.command == "rank":
             return rank_cmd(conn, settings, args.date, args.top)
+        if args.command == "run":
+            return run_cmd(conn, settings, args.date, args.dry_run)
         if args.command == "scan":
             return scan_cmd(conn, settings, args.date)
         if args.command in ("backfill", "update-prices"):

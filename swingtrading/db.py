@@ -145,6 +145,15 @@ def connect(db_path: Path | str) -> sqlite3.Connection:
     return conn
 
 
+def copy_to_memory(conn: sqlite3.Connection) -> sqlite3.Connection:
+    """An in-memory copy of the database, for dry runs that must not write anything."""
+    copy = sqlite3.connect(":memory:")
+    conn.backup(copy)
+    copy.row_factory = sqlite3.Row
+    copy.execute("PRAGMA foreign_keys = ON")
+    return copy
+
+
 def schema_version(conn: sqlite3.Connection) -> int:
     return conn.execute("PRAGMA user_version").fetchone()[0]
 

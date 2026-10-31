@@ -47,10 +47,11 @@ def setup_frame(
     pivot_move: float = 3.0,
     pivot_volume: float = 1.6 * BASE_VOLUME,
     pivot_close_at_high: bool = True,
+    trend_bars: int = 120,
 ) -> pd.DataFrame:
     """An uptrend, then a pullback, then a pivot bar as the last row."""
     pullback = [-1.2] * 5 if pullback is None else pullback
-    trend = _uptrend(120, trend_pct)
+    trend = _uptrend(trend_bars, trend_pct)
     moves = [*trend, *pullback, pivot_move]
     volumes = [BASE_VOLUME] * len(trend) + [pullback_volume] * len(pullback) + [pivot_volume]
     df = bar_frame(moves, volumes)

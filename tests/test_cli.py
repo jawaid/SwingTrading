@@ -10,6 +10,6 @@ def test_pending_command_creates_db_and_reports_phase(tmp_path, capsys):
     settings = tmp_path / "settings.yaml"
     settings.write_text(yaml.safe_dump(data))
 
-    assert cli.main(["--settings", str(settings), "run", "--dry-run"]) == 1
-    assert "Phase 7" in capsys.readouterr().out
+    assert cli.main(["--settings", str(settings), "app"]) == 1
+    assert "Phase 8" in capsys.readouterr().out
     assert (tmp_path / "swing.db").exists()

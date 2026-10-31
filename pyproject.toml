@@ -39,3 +39,5 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+# pandas_market_calendars still calls Series.dt.weekday; harmless, and noisy in every test.
+filterwarnings = ["ignore:Series.dt.weekday is deprecated"]

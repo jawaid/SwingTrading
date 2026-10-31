@@ -43,7 +43,7 @@ uv run swing run [--date YYYY-MM-DD] [--dry-run]   # the daily pipeline
 uv run swing app                   # launch the Streamlit app
 ```
 
-These are being built phase by phase; a command that isn't built yet says which phase adds it.
+`swing app` arrives in Phase 8; until then it says so.
 
 ### Universe refresh
 
@@ -83,7 +83,17 @@ The default detector, [swingtrading/setups/pullback_pivot.py](swingtrading/setup
 - `return_pct` is a fraction (0.05 = +5%), and `days_held` counts sessions from entry to exit.
 - A ticker can have only one pick that is not closed. Re-processing a session changes nothing.
 
-The daily run (Phase 7) drives this; there is no separate command.
+The daily run drives this; there is no separate command.
+
+### Daily run
+
+`swing run` does one end-of-day run after the close:
+
+1. Updates prices for the universe and every ticker with an active pick, up to the last completed session.
+2. For each session not yet processed, in order: ranks the universe, takes the shortlist, fills exits and entries at that session's open, trails stops and flags stop-outs on its close, then scans the shortlist (skipping tickers with an active pick) and creates a signal for each setup.
+3. Records a row per session in `runs` with counts (universe, shortlist, new picks, stops raised, exits, errors), prints a summary, and shows a macOS notification.
+
+If the Mac was asleep and sessions were missed, the next run processes each one from the session after the last successful run. Running it again for a session already processed does nothing. A failed session stops the run there and is retried next time. `--date YYYY-MM-DD` processes up to that session instead (a weekend or holiday is logged and skipped). `--dry-run` runs everything on an in-memory copy of the database, prints the summary, and writes nothing; it still downloads the latest prices, so it takes a few minutes.
 
 ## Development
 

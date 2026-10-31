@@ -58,10 +58,15 @@ def make_detector(settings: Settings) -> SetupDetector:
 
 
 def scan(
-    bars: pd.DataFrame, tickers: Iterable[str], detector: SetupDetector, as_of: date
+    bars: pd.DataFrame,
+    tickers: Iterable[str],
+    detector: SetupDetector,
+    as_of: date,
+    errors: list[str] | None = None,
 ) -> dict[str, SetupResult]:
     """Run `detector` on each ticker's bars through as_of. Tickers with no bar on as_of
-    are skipped, and a detector error on one ticker is logged without stopping the scan."""
+    are skipped, and a detector error on one ticker is logged (and appended to `errors`)
+    without stopping the scan."""
     found: dict[str, SetupResult] = {}
     groups = dict(tuple(bars[bars["date"] <= as_of].groupby("ticker", sort=False)))
     for ticker in tickers:
@@ -73,6 +78,8 @@ def scan(
             result = detector.detect(df.sort_values("date")[BAR_COLUMNS].reset_index(drop=True))
         except Exception:
             log.exception("Setup scan %s: %s failed, skipped", as_of, ticker)
+            if errors is not None:
+                errors.append(ticker)
             continue
         if result is not None:
             found[ticker] = result
