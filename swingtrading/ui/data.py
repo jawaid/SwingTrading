@@ -74,7 +74,12 @@ def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
                 "days_held": _sessions_held(p["entry_date"], last_date),
             }
         )  # fmt: skip
-    return pd.DataFrame(out)[CURRENT_COLUMNS]
+    df = pd.DataFrame(out)[CURRENT_COLUMNS]
+    numeric = ["entry_price", "current_price", "current_stop", "distance_to_stop_pct",
+               "open_pl_pct", "sctr", "days_held", "setup_score"]  # fmt: skip
+    df[numeric] = df[numeric].astype(float)  # None -> NaN, which tables show as blank
+    df["entry_date"] = df["entry_date"].fillna("")
+    return df
 
 
 PAST_COLUMNS = ["id", "ticker", "signal_date", "entry_date", "entry_price", "exit_date",

@@ -19,8 +19,12 @@ if df.empty:
 counts = df["status"].value_counts()
 c1, c2, c3 = st.columns(3)
 c1.metric("Open", int(counts.get("open", 0)))
-c2.metric("Waiting to enter at the next open", int(counts.get("signal", 0)))
-c3.metric("Stopped out, exit at the next open", int(counts.get("exit_pending", 0)))
+c2.metric("Pending entry", int(counts.get("signal", 0)), help="Enters at the next open")
+c3.metric(
+    "Exit pending",
+    int(counts.get("exit_pending", 0)),
+    help="Closed below the stop; exits at the next open",
+)
 
 STATUS_TEXT = {"signal": "Pending entry", "open": "Open", "exit_pending": "Exit pending"}
 view = df.assign(status=df["status"].map(STATUS_TEXT)).drop(columns=["id"])
