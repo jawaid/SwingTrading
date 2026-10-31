@@ -115,3 +115,17 @@ def test_relative_paths_resolve_to_project_root():
     resolved = s.resolve(s.paths.db_path)
     assert resolved.is_absolute()
     assert resolved.parts[-2:] == ("data", "swing.db")
+
+
+def test_save_keeps_comments_and_quotes_times(tmp_path):
+    path = tmp_path / "settings.yaml"
+    path.write_text(DEFAULT_SETTINGS_PATH.read_text())
+    s = load_settings(path)
+    s.stops.atr_mult = 3.0
+    s.schedule.run_time = "18:05"
+    save_settings(s, path)
+    text = path.read_text()
+    assert "# SwingTrading settings. Every threshold" in text
+    assert "atr_mult: 3.0" in text and '"18:05"' in text
+    again = load_settings(path)
+    assert again.schedule.run_time == "18:05" and again.stops.atr_mult == 3.0

@@ -13,11 +13,6 @@ from pathlib import Path
 from swingtrading import db, market_calendar
 from swingtrading.config import Settings, load_settings
 
-# Commands that later build phases implement. Until then they say so and exit non-zero.
-_PENDING = {
-    "app": "Phase 8",
-}
-
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="swing", description="End-of-day swing trading signals")
@@ -37,7 +32,8 @@ def _build_parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="run the daily pipeline")
     run.add_argument("--date", help="session date YYYY-MM-DD (default: last completed session)")
     run.add_argument("--dry-run", action="store_true", help="compute and print, write nothing")
-    sub.add_parser("app", help="launch the Streamlit app")
+    app = sub.add_parser("app", help="launch the Streamlit app")
+    app.add_argument("--port", type=int, default=8501, help="local port (default: 8501)")
     return parser
 
 
@@ -167,15 +163,34 @@ def run_cmd(conn: sqlite3.Connection, settings: Settings, day: str | None, dry_r
     return 1 if any(r.status == "failed" for r in reports) else 0
 
 
+def app_cmd(settings: Settings, settings_file: str | None, port: int) -> int:
+    """Run the Streamlit app in the foreground until Ctrl+C."""
+    import os
+    import subprocess
+
+    from swingtrading.config import PROJECT_ROOT, SETTINGS_ENV_VAR
+
+    db.connect(settings.resolve(settings.paths.db_path)).close()  # create/migrate first
+    env = dict(os.environ)
+    if settings_file:
+        env[SETTINGS_ENV_VAR] = str(Path(settings_file).resolve())
+    cmd = [sys.executable, "-m", "streamlit", "run", str(PROJECT_ROOT / "app" / "Home.py"),
+           "--server.port", str(port), "--server.address", "localhost",
+           "--server.headless", "true", "--browser.gatherUsageStats", "false",
+           "--theme.base", "light", "--client.toolbarMode", "minimal"]  # fmt: skip
+    print(f"SwingTrading app: http://localhost:{port}  (Ctrl+C to stop)")
+    try:
+        return subprocess.call(cmd, env=env, cwd=PROJECT_ROOT)
+    except KeyboardInterrupt:
+        return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     settings = load_settings(args.settings)
 
-    phase = _PENDING.get(args.command)
-    if phase:
-        db.connect(settings.resolve(settings.paths.db_path)).close()
-        print(f"`swing {args.command}` is not built yet ({phase} of BUILD_PLAN.md).")
-        return 1
+    if args.command == "app":
+        return app_cmd(settings, args.settings, args.port)
 
     setup_logging(settings.resolve(settings.paths.log_dir), datetime.now().date().isoformat())
     conn = db.connect(settings.resolve(settings.paths.db_path))

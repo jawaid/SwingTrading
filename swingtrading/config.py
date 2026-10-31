@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import os
 import re
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt, model_validator
@@ -162,11 +163,42 @@ def load_settings(path: Path | str | None = None) -> Settings:
     return Settings.model_validate(raw)
 
 
+def _safe_scalar(value: Any) -> Any:
+    """Quote strings PyYAML would read back as something else (e.g. 17:30 is an int)."""
+    from ruamel.yaml.scalarstring import DoubleQuotedScalarString
+
+    if isinstance(value, str) and yaml.safe_load(value) != value:
+        return DoubleQuotedScalarString(value)
+    return value
+
+
+def _merge(node: Any, values: dict[str, Any]) -> None:
+    """Update a ruamel mapping in place so its comments and layout survive."""
+    for key, value in values.items():
+        if isinstance(value, dict) and isinstance(node.get(key), dict):
+            _merge(node[key], value)
+        elif node.get(key) != value:
+            node[key] = _safe_scalar(value)
+
+
 def save_settings(settings: Settings, path: Path | str | None = None) -> Path:
-    """Validate and write settings back to YAML. Returns the path written."""
+    """Validate and write settings back to YAML, keeping the file's comments.
+    Returns the path written."""
+    from ruamel.yaml import YAML
+
     target = settings_path(path)
     Settings.model_validate(settings.model_dump())
     data = settings.model_dump(mode="json")
+    rt = YAML()
+    rt.preserve_quotes = True
+    rt.width = 100
+    doc = rt.load(target.read_text()) if target.exists() else None
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(yaml.safe_dump(data, sort_keys=False))
+    if doc is None:
+        target.write_text(yaml.safe_dump(data, sort_keys=False))
+        return target
+    _merge(doc, data)
+    buf = io.StringIO()
+    rt.dump(doc, buf)
+    target.write_text(buf.getvalue())
     return target

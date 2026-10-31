@@ -40,10 +40,9 @@ uv run swing update-prices         # fetch only sessions missing since the last 
 uv run swing rank [--date YYYY-MM-DD] [--top 25]   # SCTR rankings from stored prices
 uv run swing scan [--date YYYY-MM-DD]              # setups in the stored shortlist (read-only)
 uv run swing run [--date YYYY-MM-DD] [--dry-run]   # the daily pipeline
-uv run swing app                   # launch the Streamlit app
+uv run swing app [--port 8501]     # the app at http://localhost:8501
 ```
 
-`swing app` arrives in Phase 8; until then it says so.
 
 ### Universe refresh
 
@@ -94,6 +93,15 @@ The daily run drives this; there is no separate command.
 3. Records a row per session in `runs` with counts (universe, shortlist, new picks, stops raised, exits, errors), prints a summary, and shows a macOS notification.
 
 If the Mac was asleep and sessions were missed, the next run processes each one from the session after the last successful run. Running it again for a session already processed does nothing. A failed session stops the run there and is retried next time. `--date YYYY-MM-DD` processes up to that session instead (a weekend or holiday is logged and skipped). `--dry-run` runs everything on an in-memory copy of the database, prints the summary, and writes nothing; it still downloads the latest prices, so it takes a few minutes.
+
+### App
+
+`swing app` starts the Streamlit app on your Mac only (localhost) and prints its address; stop it with Ctrl+C. It has four screens:
+
+- **Current picks**: pending, open and exit-pending picks with price, stop, distance to stop, open P/L, SCTR and days held. Select a row for its chart: the close price, entry and exit markers, and the stop as a stepped dashed line.
+- **Past picks**: closed picks filtered by exit date and winners or losers, with the same chart.
+- **Performance**: win rate, average win and loss, average return and days held.
+- **About and settings**: how the method works, the last run's status, a **Run now** button (and a dry run) that runs `swing run` in the background and shows its log, and an editor for settings.yaml. Edits are validated before saving, and the file's comments are kept.
 
 ## Development
 
