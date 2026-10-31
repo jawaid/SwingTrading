@@ -135,7 +135,7 @@ Raw score components:
 - `symbols`: ticker, name, exchange, is_etf, quote_type, sector, industry, fund_category, market_cap, total_assets, excluded_reason, updated_at
 - `prices`: ticker, date, open, high, low, close, volume (PK ticker+date), adjusted
 - `rankings`: date, ticker, sctr, raw_score, component columns (PK date+ticker)
-- `picks`: id, ticker, status, signal_date, signal_close, sctr_at_signal, setup_score, setup_details (JSON), entry_date, entry_price, initial_stop, current_stop, highest_close, exit_signal_date, exit_date, exit_price, return_pct, days_held
+- `picks`: id, ticker, status, signal_date, signal_close, signal_atr, sctr_at_signal, setup_score, setup_details (JSON), entry_date, entry_price, initial_stop, current_stop, highest_close, exit_signal_date, exit_date, exit_price, return_pct, days_held
 - `stop_history`: pick_id, date, close, stop
 - `runs`: session_date, started_at, finished_at, status, counts, error
 

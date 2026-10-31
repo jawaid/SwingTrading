@@ -73,6 +73,18 @@ sqlite3 data/swing.db "SELECT ticker, excluded_reason FROM symbols WHERE ticker 
 
 The default detector, [swingtrading/setups/pullback_pivot.py](swingtrading/setups/pullback_pivot.py), is a **placeholder** for your own formula: a 3-12% (1-4 ATR) orderly pullback from a swing high in the last 20 sessions, holding the 50-day EMA, then a pivot day that closes above the prior day's high, in the upper half of its range, on above-average volume. Every threshold is in the `setup` section of settings.yaml. To use a different formula, write a class with a `name` and a `detect(df) -> SetupResult | None` method, register it in `DETECTORS` in [swingtrading/setups/base.py](swingtrading/setups/base.py), and set `setup.detector` to its name.
 
+### Stops and picks
+
+[swingtrading/stops.py](swingtrading/stops.py) and [swingtrading/positions.py](swingtrading/positions.py) track each pick through `signal` → `open` → `exit_pending` → `closed`:
+
+- A pick is entered at the open of the session after its signal, with an initial stop of entry − `atr_mult` × ATR(14) as of the signal session.
+- After each close the stop trails to the highest close since entry − `atr_mult` × the current ATR, but it never moves down. Every session's stop is saved in `stop_history`.
+- A close below the stop in effect that morning marks the pick `exit_pending`; it is closed at the next session's open, even if that open gaps well below the stop.
+- `return_pct` is a fraction (0.05 = +5%), and `days_held` counts sessions from entry to exit.
+- A ticker can have only one pick that is not closed. Re-processing a session changes nothing.
+
+The daily run (Phase 7) drives this; there is no separate command.
+
 ## Development
 
 ```bash

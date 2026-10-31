@@ -124,6 +124,10 @@ MIGRATIONS: list[str] = [
     ALTER TABLE symbols ADD COLUMN history_sessions INTEGER;
     ALTER TABLE symbols ADD COLUMN metadata_updated_at TEXT;
     """,
+    # 3: ATR at the signal session, needed to set the initial stop at the next open
+    """
+    ALTER TABLE picks ADD COLUMN signal_atr REAL;
+    """,
 ]
 
 SCHEMA_VERSION = len(MIGRATIONS)
