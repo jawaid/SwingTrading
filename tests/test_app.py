@@ -138,3 +138,17 @@ def test_settings_form_helpers():
     new = settings_form.apply(s, {("stops", "atr_mult"): 3.0})
     assert new.stops.atr_mult == 3.0 and s.stops.atr_mult == 2.5
     assert (("ranking", "weights", "rsi"), 5) in settings_form.fields(s)
+
+
+def test_performance_data_from_the_database(settings_file):
+    _seed(settings_file)
+    s, conn = data.open_db(load_settings(settings_file))
+    save_bars(conn, setup_frame().assign(ticker="SPY"))
+    perf = data.performance_data(conn)
+    assert perf.stats.trades == 1 and perf.stats.expectancy == pytest.approx(-0.0198)
+    assert perf.equity.iloc[0] == 1.0 and list(perf.benchmark.index) == list(perf.equity.index)
+    assert perf.max_drawdown <= 0
+    assert list(perf.monthly.columns) == ["month", "picks_pct", "spy_pct"]
+    fig = charts.equity_chart(perf.equity, perf.benchmark)
+    assert [t.name for t in fig.data] == ["Picks", "SPY"]
+    conn.close()

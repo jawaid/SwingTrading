@@ -81,3 +81,30 @@ def sctr_scale_html(marker: float | None = None, label: str = "") -> str:
         f'<div style="position:relative;height:16px;margin-top:6px;font-size:12px;'
         f'color:#4A5568">{ticks}</div></div>'
     )
+
+
+def equity_chart(equity: pd.Series, benchmark: pd.Series) -> go.Figure:
+    """Equal-weighted picks against SPY, both as % change from the start."""
+    fig = go.Figure()
+    lines = [("Picks", equity, {"color": SLATE, "width": 2}),
+             ("SPY", benchmark, {"color": TEAL, "width": 2, "dash": "dot"})]  # fmt: skip
+    for name, curve, line in lines:
+        if curve.empty:
+            continue
+        fig.add_trace(
+            go.Scatter(
+                x=list(curve.index), y=(curve - 1) * 100, name=name, mode="lines", line=line,
+                hovertemplate=f"{name} %{{y:+.1f}}%<extra></extra>",
+            )
+        )  # fmt: skip
+    fig.add_hline(y=0, line={"color": GRID, "width": 1})
+    fig.update_layout(
+        template="plotly_white",
+        height=360,
+        margin={"l": 10, "r": 10, "t": 30, "b": 10},
+        legend={"orientation": "h", "y": 1.08, "x": 0},
+        hovermode="x unified",
+    )
+    fig.update_xaxes(gridcolor=GRID, rangebreaks=[{"bounds": ["sat", "mon"]}])
+    fig.update_yaxes(gridcolor=GRID, ticksuffix="%", tickformat=".0f")
+    return fig

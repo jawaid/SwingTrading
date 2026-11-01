@@ -24,7 +24,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 
-from swingtrading import db, market_calendar, positions
+from swingtrading import db, market_calendar, performance, positions
 from swingtrading.config import Settings
 from swingtrading.data.provider import PriceProvider
 from swingtrading.db import ACTIVE_PICK_STATUSES, transaction
@@ -196,7 +196,8 @@ def run(
 
         price_errors = 0
         active = [p["ticker"] for p in positions.picks(work, ACTIVE_PICK_STATUSES)]
-        tickers = sorted(set(universe_tickers(work)) | set(active))
+        # SPY too, even if it drops out of the universe: Performance compares against it.
+        tickers = sorted(set(universe_tickers(work)) | set(active) | {performance.BENCHMARK})
         try:
             prices = update_prices(work, settings, provider, tickers, target, now=now)
             price_errors = len(prices.no_data) + len(prices.stale)

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import dataclass
 from datetime import date
 
 import pandas as pd
 
-from swingtrading import db, market_calendar
+from swingtrading import db, market_calendar, performance
 from swingtrading.config import Settings, load_settings
 from swingtrading.positions import picks, stop_history
 from swingtrading.prices import load_bars
@@ -107,6 +108,45 @@ def pick_chart_data(
     history = pd.DataFrame(stop_history(conn, pick["id"]), columns=["date", "close", "stop"])
     history["date"] = [date.fromisoformat(d) for d in history["date"]]
     return bars, history
+
+
+@dataclass
+class PerformanceData:
+    stats: performance.TradeStats | None
+    equity: pd.Series  # growth of 1, by session
+    benchmark: pd.Series  # SPY growth of 1 over the same sessions (empty without prices)
+    max_drawdown: float
+    monthly: pd.DataFrame  # month, picks %, SPY %
+
+
+def performance_data(conn: sqlite3.Connection) -> PerformanceData:
+    """Closed-trade stats plus the equity curve of every entered pick against SPY."""
+    closed = picks(conn, ("closed",))
+    stats = performance.trade_stats(
+        [p["return_pct"] for p in closed], [p["days_held"] for p in closed]
+    )
+    entered = [p for p in picks(conn) if p["entry_date"]]
+    empty = pd.Series(dtype=float)
+    if not entered:
+        return PerformanceData(stats, empty, empty, 0.0, pd.DataFrame())
+    start = market_calendar.previous_session(
+        min(date.fromisoformat(p["entry_date"]) for p in entered)
+    )
+    tickers = sorted({p["ticker"] for p in entered} | {performance.BENCHMARK})
+    bars = load_bars(conn, tickers, start=start)
+    closes = bars.pivot(index="date", columns="ticker", values="close")
+    for t in tickers:  # a ticker with no stored bars still needs a column
+        if t not in closes:
+            closes[t] = float("nan")
+    held = closes.drop(columns=[performance.BENCHMARK])
+    equity = performance.equity_curve(performance.daily_returns(entered, held))
+    spy = closes[performance.BENCHMARK].dropna()
+    benchmark = performance.benchmark_curve(spy, equity.index) if len(spy) else empty
+    monthly = pd.DataFrame({"picks_pct": performance.monthly_returns(equity) * 100})
+    if len(benchmark):
+        monthly["spy_pct"] = performance.monthly_returns(benchmark) * 100
+    monthly = monthly.rename_axis("month").reset_index().iloc[::-1].reset_index(drop=True)
+    return PerformanceData(stats, equity, benchmark, performance.max_drawdown(equity), monthly)
 
 
 def setup_details(pick: dict) -> dict:

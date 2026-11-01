@@ -88,7 +88,7 @@ The daily run drives this; there is no separate command.
 
 `swing run` does one end-of-day run after the close:
 
-1. Updates prices for the universe and every ticker with an active pick, up to the last completed session.
+1. Updates prices for the universe, every ticker with an active pick, and SPY (the Performance benchmark), up to the last completed session.
 2. For each session not yet processed, in order: ranks the universe, takes the shortlist, fills exits and entries at that session's open, trails stops and flags stop-outs on its close, then scans the shortlist (skipping tickers with an active pick) and creates a signal for each setup.
 3. Records a row per session in `runs` with counts (universe, shortlist, new picks, stops raised, exits, errors), prints a summary, and shows a macOS notification.
 
@@ -100,7 +100,9 @@ If the Mac was asleep and sessions were missed, the next run processes each one 
 
 - **Current picks**: pending, open and exit-pending picks with price, stop, distance to stop, open P/L, SCTR and days held. Select a row for its chart: the close price, entry and exit markers, and the stop as a stepped dashed line.
 - **Past picks**: closed picks filtered by exit date and winners or losers, with the same chart.
-- **Performance**: win rate, average win and loss, average return and days held.
+- **Performance**: for closed picks, win rate, average win and loss, profit factor (gross gains over gross losses), expectancy (average return per pick) and average days held. Then an equity curve against SPY with its max drawdown, and a monthly returns table for both.
+
+The equity curve holds every entered pick in equal weight each session, including picks still open, and compounds the day's average return. A pick earns from its entry price (the open) to the close on its entry day, and from the prior close to its exit price (the open) on its exit day. A day with nothing held earns nothing. SPY is measured over the same sessions. The math is in `swingtrading/performance.py`.
 - **About and settings**: how the method works, the last run's status, a **Run now** button (and a dry run) that runs `swing run` in the background and shows its log, and an editor for settings.yaml. Edits are validated before saving, and the file's comments are kept.
 
 ## Development
