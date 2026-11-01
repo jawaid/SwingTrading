@@ -132,3 +132,7 @@ uv run pytest          # tests never touch the network
 uv run ruff check .
 uv run ruff format .
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE). The license covers this code only, not price or company data from Yahoo Finance or other sources. SwingTrading is a signals and tracking tool, not financial advice; it is provided as is, without warranty.
