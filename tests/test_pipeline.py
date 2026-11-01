@@ -188,3 +188,36 @@ def test_sessions_to_process(conn):
         D1,
         D2,
     ]
+
+
+def test_second_run_is_refused_while_one_is_in_progress(conn, settings, provider):
+    with pipeline.run_lock(conn):  # as if the scheduled run were still going
+        for dry_run in (False, True):
+            with pytest.raises(pipeline.RunInProgressError, match="already in progress"):
+                pipeline.run(conn, settings, provider, target=END, dry_run=dry_run, now=NOW)
+    assert provider.calls == 0 and _runs(conn) == [] and pos.picks(conn) == []
+    reports = pipeline.run(conn, settings, provider, target=END, now=NOW)  # lock released
+    assert reports[0].new_picks == ["PIV"]
+
+
+def test_lock_is_released_when_a_run_raises(conn, settings, provider, monkeypatch):
+    monkeypatch.setattr(pipeline, "sessions_to_process", lambda *a: 1 / 0)
+    with pytest.raises(ZeroDivisionError):
+        pipeline.run(conn, settings, provider, target=END, now=NOW)
+    monkeypatch.undo()
+    assert pipeline.run(conn, settings, provider, target=END, now=NOW)[0].status == "success"
+
+
+def test_in_memory_database_needs_no_lock(settings):
+    mem = db.connect(":memory:")
+    with pipeline.run_lock(mem), pipeline.run_lock(mem):
+        pass
+    mem.close()
+
+
+def test_notifier_quiet_when_nothing_to_do(conn, settings, provider):
+    pipeline.run(conn, settings, provider, target=END, now=NOW)
+    sent = []
+    pipeline.run(conn, settings, provider, target=END, now=NOW, notifier=sent.append)
+    pipeline.run(conn, settings, provider, target=date(2026, 10, 25), now=NOW, notifier=sent.append)
+    assert sent == []

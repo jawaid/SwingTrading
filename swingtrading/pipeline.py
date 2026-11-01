@@ -14,15 +14,23 @@ Mac was asleep) are processed one by one from the session after the last success
 so nothing is skipped and nothing runs out of order. A session already processed is not
 processed again. A dry run does all of this on an in-memory copy of the database, so
 nothing is written; it still downloads prices into that copy.
+
+Only one run (or dry run) at a time: a run holds a lock file next to the database, and a
+second run started meanwhile (the scheduled run and Run now, say) stops with
+RunInProgressError instead of processing the same session twice. The operating system
+releases the lock if a run crashes, so it never goes stale.
 """
 
 from __future__ import annotations
 
+import fcntl
 import logging
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 from swingtrading import db, market_calendar, performance, positions
 from swingtrading.config import Settings
@@ -34,6 +42,30 @@ from swingtrading.setups import make_detector, scan
 from swingtrading.universe import universe_tickers
 
 log = logging.getLogger(__name__)
+
+
+class RunInProgressError(RuntimeError):
+    """Another run holds the lock on this database."""
+
+
+@contextmanager
+def run_lock(conn: sqlite3.Connection) -> Iterator[None]:
+    """Hold `<database>.lock` for the duration of a run. No-op for an in-memory database."""
+    db_file = next((r[2] for r in conn.execute("PRAGMA database_list") if r[1] == "main"), "")
+    if not db_file:
+        yield
+        return
+    with open(Path(db_file).with_suffix(".lock"), "w") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RunInProgressError(
+                "another run is already in progress; try again when it finishes"
+            ) from None
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 @dataclass
@@ -184,6 +216,21 @@ def run(
     if target > done:
         raise ValueError(f"session {target} is not complete yet; last completed is {done}")
 
+    with run_lock(conn):
+        reports = _run_locked(conn, settings, provider, target, dry_run, now)
+    if notifier and not dry_run and reports and reports[0].status != "skipped":
+        notifier(notification_text(reports))  # nothing to say on a no-op or holiday
+    return reports
+
+
+def _run_locked(
+    conn: sqlite3.Connection,
+    settings: Settings,
+    provider: PriceProvider,
+    target: date,
+    dry_run: bool,
+    now: datetime | None,
+) -> list[SessionReport]:
     work = db.copy_to_memory(conn) if dry_run else conn
     try:
         if not market_calendar.is_trading_day(target):
@@ -218,9 +265,6 @@ def run(
     finally:
         if dry_run:
             work.close()
-
-    if notifier and not dry_run:
-        notifier(notification_text(reports))
     return reports
 
 

@@ -23,3 +23,14 @@ def test_app_creates_db_and_launches_streamlit(tmp_path, monkeypatch, capsys):
     assert cmd[1:4] == ["-m", "streamlit", "run"] and cmd[4].endswith("app/Home.py")
     assert "8600" in cmd and kw["env"]["SWING_SETTINGS"] == str(settings)
     assert "http://localhost:8600" in capsys.readouterr().out
+
+
+def test_run_refused_while_another_run_holds_the_lock(tmp_path, capsys):
+    from swingtrading import db, pipeline
+
+    settings = _settings(tmp_path)
+    conn = db.connect(tmp_path / "swing.db")
+    with pipeline.run_lock(conn):
+        assert cli.main(["--settings", str(settings), "run", "--date", "2026-10-30"]) == 1
+    conn.close()
+    assert "Not started: another run is already in progress" in capsys.readouterr().out

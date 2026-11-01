@@ -94,7 +94,7 @@ The daily run drives this; there is no separate command.
 2. For each session not yet processed, in order: ranks the universe, takes the shortlist, fills exits and entries at that session's open, trails stops and flags stop-outs on its close, then scans the shortlist (skipping tickers with an active pick) and creates a signal for each setup.
 3. Records a row per session in `runs` with counts (universe, shortlist, new picks, stops raised, exits, errors), prints a summary, and shows a macOS notification.
 
-If the Mac was asleep and sessions were missed, the next run processes each one from the session after the last successful run. Running it again for a session already processed does nothing. A failed session stops the run there and is retried next time. `--date YYYY-MM-DD` processes up to that session instead (a weekend or holiday is logged and skipped). `--dry-run` runs everything on an in-memory copy of the database, prints the summary, and writes nothing; it still downloads the latest prices, so it takes a few minutes.
+If the Mac was asleep and sessions were missed, the next run processes each one from the session after the last successful run. Running it again for a session already processed does nothing. Only one run happens at a time: a run started while another is going (the scheduled run and **Run now**, say) stops straight away with "another run is already in progress". A failed session stops the run there and is retried next time. `--date YYYY-MM-DD` processes up to that session instead (a weekend or holiday is logged and skipped). `--dry-run` runs everything on an in-memory copy of the database, prints the summary, and writes nothing; it still downloads the latest prices, so it takes a few minutes.
 
 ### App
 

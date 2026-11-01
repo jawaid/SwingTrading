@@ -151,14 +151,18 @@ def run_cmd(conn: sqlite3.Connection, settings: Settings, day: str | None, dry_r
     from swingtrading.data.yahoo import YahooPriceProvider
 
     target = date.fromisoformat(day) if day else None
-    reports = pipeline.run(
-        conn,
-        settings,
-        YahooPriceProvider(settings.data),
-        target=target,
-        dry_run=dry_run,
-        notifier=None if dry_run else notify.send,
-    )
+    try:
+        reports = pipeline.run(
+            conn,
+            settings,
+            YahooPriceProvider(settings.data),
+            target=target,
+            dry_run=dry_run,
+            notifier=None if dry_run else notify.send,
+        )
+    except pipeline.RunInProgressError as exc:
+        print(f"Not started: {exc}.")
+        return 1
     print("\n" + pipeline.format_reports(reports, dry_run))
     return 1 if any(r.status == "failed" for r in reports) else 0
 
