@@ -17,8 +17,8 @@ def section(items: list[tuple[str, str]]) -> None:
             st.markdown(body)
 
 
-tab_basics, tab_current, tab_past, tab_perf, tab_about = st.tabs(
-    ["The basics", "Current picks", "Past picks", "Performance", "About and settings"]
+tab_basics, tab_logic, tab_current, tab_past, tab_perf, tab_about = st.tabs(
+    ["The basics", "Logic", "Current picks", "Past picks", "Performance", "About and settings"]
 )
 
 # ---- basics ------------------------------------------------------------------------------
@@ -53,6 +53,126 @@ with tab_basics:
          "If it's asleep, the run happens as soon as it wakes. If it was off, the next run "
          "catches up every missed day in order. Nothing is lost; the picks just update late."),
     ])  # fmt: skip
+
+# ---- logic -------------------------------------------------------------------------------
+u, r, su = settings.universe, settings.ranking, settings.setup
+w = r.weights
+universe = data.data_status(conn)["universe"]
+shortlist = round(universe * r.shortlist_pct / 100)
+long_q = f"Well above its {r.long_ema_period}-day average? Up over the last ~6 months?"
+mid_q = f"Above its {r.mid_ema_period}-day average? Up over the last month?"
+
+
+def money(x: float) -> str:
+    return f"\\${x / 1e9:g} billion" if x >= 1e9 else f"\\${x / 1e6:g} million"
+
+
+with tab_logic:
+    st.markdown(
+        "The whole journey from every US stock down to a single pick, in plain English. It "
+        "runs every weekday evening after the market closes. The numbers below are your "
+        "current settings."
+    )
+    st.markdown(f"""
+### Step 1: Decide which stocks to watch (the universe)
+
+Start with every stock and ETF listed on the major US exchanges (NYSE, NASDAQ, NYSE
+American, NYSE Arca), and keep only the solid, easy-to-trade ones:
+
+- **Big companies:** stocks worth at least **{money(u.min_market_cap)}**, ETFs holding at
+  least **{money(u.min_etf_total_assets)}**.
+- **Heavily traded:** at least **{money(u.min_avg_dollar_volume)}** changing hands per day on
+  average, so you could get in and out easily.
+- **Enough history:** at least **{u.min_history_sessions} trading days** of prices (about a
+  year), which the strength score needs.
+- **No unusual types:** preferred shares, warrants, foreign ADRs, REITs, SPACs and 2x/3x
+  leveraged or inverse ETFs are left out.
+
+That leaves about **{universe:,}** names. The list is refreshed weekly.
+
+### Step 2: Rank them by strength (SCTR)
+
+Every stock gets a strength score from six measures:
+
+| Time frame | Weight | Question it asks |
+|---|---|---|
+| Long term | {w.long_ema + w.long_roc:g}% | {long_q} |
+| Medium term | {w.mid_ema + w.mid_roc:g}% | {mid_q} |
+| Short term | {w.ppo_slope + w.rsi:g}% | Is momentum improving over the last few days? |
+
+Then all of them are ranked against each other, from **0 (weakest) to 99.99 (strongest)**.
+
+### Step 3: Keep only the leaders (the shortlist)
+
+Only the **top {top}%** (about **{shortlist:,}** stocks) move on. Strong stocks tend to
+keep being strong, so the app only looks for buying chances among the leaders.
+
+### Step 4: Look for a dip and a turn-up (the setup)
+
+Among the shortlist, look for a stock that **paused, pulled back calmly, and has just
+started rising again**. All of these must be true:
+
+**A. A recent high:** it made a high in the last **{su.swing_high_lookback} trading days**.
+
+**B. A healthy dip from that high:**
+- down **{su.pullback_min_pct:g}% to {su.pullback_max_pct:g}%** from the high,
+- which is also **{su.pullback_min_atr:g} to {su.pullback_max_atr:g} times its normal daily
+  move (ATR)**: meaningful for that stock, but not a collapse,
+- and the dip lasted **{su.max_pullback_sessions} days or fewer**.
+
+**C. A calm dip, not panic selling:**
+- the down days had **lighter volume than normal** (sellers weren't rushing out),
+- and it **never closed below its {su.trend_ema_period}-day average** during the dip, so the
+  uptrend held.
+
+**D. Today it turned back up (the pivot day):**
+- it **closed above yesterday's high** (the turn-up),
+- in the **upper half of today's range** (buyers held control into the close),
+- on **at least normal volume** (real buying interest).
+
+If A to D are all true, **it's a setup**, with a **setup score from 0 to 100** for how
+cleanly it passed. *This setup rule is a starting placeholder and can be swapped for your
+own formula.*
+
+### Step 5: Make the pick
+
+Each setup becomes a pick with status **Pending entry**. A stock that already has an active
+pick isn't picked again.
+
+### Step 6: Buy at the next open
+
+The next trading day the pick is **bought at the opening price**, whatever it is. That
+evening's run records it, and the status becomes **Open**.
+
+### Step 7: Set the safety stop
+
+On the buy day the stop is set **{m} times the stock's normal daily move** (ATR over
+{period} days) below the entry. Calm stocks get a tight stop, jumpy stocks more room.
+
+### Step 8: Trail the stop up, every evening
+
+- When the stock makes a **new highest close**, the stop moves up to that close minus
+  {m} daily moves.
+- **The stop never moves down.**
+- Only **closing prices** count; a dip below the stop during the day does nothing.
+
+### Step 9: Sell
+
+When the stock **closes below its stop**, it becomes **Exit pending** and is **sold at the
+next day's open**. There is no profit target and no time limit: winners are held as long as
+they keep rising.
+
+### Step 10: Keep score
+
+The sold pick moves to **Past picks** with its final return, and **Performance** adds it to
+the win rate, average win and loss, and the comparison with simply holding SPY.
+
+---
+
+**In one sentence:** pick **strong stocks** (top {top}%) that **dipped calmly** and have
+**just turned back up on good volume**, buy at the **next open**, and hold as long as a
+**rising stop** isn't broken.
+""")
 
 # ---- current picks -----------------------------------------------------------------------
 with tab_current:

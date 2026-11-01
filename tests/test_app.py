@@ -162,8 +162,12 @@ def test_faq_covers_every_current_picks_column(settings_file):
                    "Open P/L", "SCTR", "Days held", "Setup score", "Exited", "Return",
                    "Profit factor", "Max drawdown", "Run now and Dry run"]:  # fmt: skip
         assert column in titles, column
-    assert [t.label for t in at.tabs] == ["The basics", "Current picks", "Past picks",
+    assert [t.label for t in at.tabs] == ["The basics", "Logic", "Current picks", "Past picks",
                                           "Performance", "About and settings"]  # fmt: skip
+    logic = at.tabs[1].markdown[1].value
+    assert "Step 10" in logic and "top 15%" in logic and "2.5 times" in logic
+    assert "| 60% |" in logic
+    assert "\\$2 billion" in logic and "{" not in logic  # dollars escaped, no unfilled fields
 
 
 def test_disclaimer_is_shown(settings_file):
