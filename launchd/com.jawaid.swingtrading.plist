@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The weekday evening run: scripts/run_daily.sh, Monday-Friday at 5:30 PM US Eastern.
+     launchd uses the Mac's local time, so the times below are 5:30 PM Eastern in Central
+     time (4:30 PM). scripts/install_launchd.sh recomputes them for this Mac's time zone
+     when it installs. If the Mac is asleep at that time, launchd runs the job once when it
+     wakes; the pipeline itself catches up any sessions missed while the Mac was off. -->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.jawaid.swingtrading</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/sh</string>
+		<string>/Users/jawaidekram/Projects/SwingTrading/scripts/run_daily.sh</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/jawaidekram/Projects/SwingTrading</string>
+	<key>StartCalendarInterval</key>
+	<array>
+		<dict>
+			<key>Weekday</key>
+			<integer>1</integer>
+			<key>Hour</key>
+			<integer>16</integer>
+			<key>Minute</key>
+			<integer>30</integer>
+		</dict>
+		<dict>
+			<key>Weekday</key>
+			<integer>2</integer>
+			<key>Hour</key>
+			<integer>16</integer>
+			<key>Minute</key>
+			<integer>30</integer>
+		</dict>
+		<dict>
+			<key>Weekday</key>
+			<integer>3</integer>
+			<key>Hour</key>
+			<integer>16</integer>
+			<key>Minute</key>
+			<integer>30</integer>
+		</dict>
+		<dict>
+			<key>Weekday</key>
+			<integer>4</integer>
+			<key>Hour</key>
+			<integer>16</integer>
+			<key>Minute</key>
+			<integer>30</integer>
+		</dict>
+		<dict>
+			<key>Weekday</key>
+			<integer>5</integer>
+			<key>Hour</key>
+			<integer>16</integer>
+			<key>Minute</key>
+			<integer>30</integer>
+		</dict>
+	</array>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>StandardOutPath</key>
+	<string>/Users/jawaidekram/Projects/SwingTrading/data/logs/launchd_daily.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/jawaidekram/Projects/SwingTrading/data/logs/launchd_daily.log</string>
+</dict>
+</plist>

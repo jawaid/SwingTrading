@@ -105,6 +105,25 @@ If the Mac was asleep and sessions were missed, the next run processes each one 
 The equity curve holds every entered pick in equal weight each session, including picks still open, and compounds the day's average return. A pick earns from its entry price (the open) to the close on its entry day, and from the prior close to its exit price (the open) on its exit day. A day with nothing held earns nothing. SPY is measured over the same sessions. The math is in `swingtrading/performance.py`.
 - **About and settings**: how the method works, the last run's status, a **Run now** button (and a dry run) that runs `swing run` in the background and shows its log, and an editor for settings.yaml. Edits are validated before saving, and the file's comments are kept.
 
+## Automation
+
+Two launchd jobs run SwingTrading on its own:
+
+- `com.jawaid.swingtrading`: the evening run, `scripts/run_daily.sh`, Monday to Friday at 5:30 PM US Eastern (4:30 PM on a Mac set to Central time). The installer converts the time to the Mac's time zone. On a market holiday the run sees the market was closed, records a skipped session and does nothing else.
+- `com.jawaid.swingtrading.app`: keeps the app running at http://localhost:8502. It starts at login and restarts if it stops.
+
+```bash
+scripts/install_launchd.sh            # install or reinstall both (run again after moving time zones)
+scripts/install_launchd.sh status     # loaded? running? last exit code
+scripts/install_launchd.sh uninstall  # remove both
+```
+
+**Logs:** each evening run appends to `data/logs/daily_YYYY-MM-DD.log` (the `swing run` summary) and `data/logs/run_YYYY-MM-DD.log` (detailed). launchd's own output goes to `data/logs/launchd_daily.log`, and the app's to `data/logs/app_server.log`. The About and settings screen also shows the last run.
+
+**Run it by hand:** `scripts/run_daily.sh` (the same as the scheduled job), or ask launchd to start it now with `launchctl kickstart gui/$(id -u)/com.jawaid.swingtrading`. Running it again for a session already processed does nothing.
+
+**Missed runs:** if the Mac is asleep at 5:30 PM, launchd runs the job once as soon as it wakes. Several missed evenings still give one run, and that run processes every missed session in order. If the Mac was shut down at that time, launchd skips the run, and the next scheduled run catches up the same way. Either way no session is lost, though the picks update late.
+
 ## Development
 
 ```bash

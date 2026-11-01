@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Keeps the SwingTrading app running at http://localhost:8502: starts it at login and
-     restarts it if it stops. Install by copying to ~/Library/LaunchAgents and running
-     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.jawaid.swingtrading.app.plist -->
+     restarts it if it stops. Installed by scripts/install_launchd.sh. -->
 <plist version="1.0">
 <dict>
 	<key>Label</key>
