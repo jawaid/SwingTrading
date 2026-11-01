@@ -18,3 +18,4 @@ pages = [
 ]  # fmt: skip
 st.sidebar.caption(disclaimer.SHORT)
 st.navigation(pages).run()
+disclaimer.footer()  # screens that end early draw it themselves (disclaimer.stop)

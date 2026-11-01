@@ -2,7 +2,7 @@ from datetime import date
 
 import streamlit as st
 
-from swingtrading.ui import charts, data
+from swingtrading.ui import charts, data, disclaimer
 
 settings, conn = data.open_db()
 st.title("Past picks")
@@ -10,7 +10,7 @@ df = data.past_picks(conn)
 
 if df.empty:
     st.info("No closed picks yet. A pick closes at the open after a close below its stop.")
-    st.stop()
+    disclaimer.stop()
 
 first, last = date.fromisoformat(df["exit_date"].min()), date.fromisoformat(df["exit_date"].max())
 c1, c2 = st.columns([2, 1])
@@ -26,7 +26,7 @@ shown = df[mask].reset_index(drop=True)
 
 if shown.empty:
     st.info("No closed picks match these filters.")
-    st.stop()
+    disclaimer.stop()
 
 wins = (shown["return_pct"] > 0).mean() * 100
 c1, c2, c3 = st.columns(3)

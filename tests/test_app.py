@@ -179,3 +179,20 @@ def test_disclaimer_is_shown(settings_file):
     assert "licensed financial advisor" in about.warning[0].value
     faq = _run(PROJECT_ROOT / "app" / "screens" / "5_FAQ.py")
     assert "Is this financial advice?" in {e.label for e in faq.expander}
+
+
+@pytest.mark.parametrize("seeded", [False, True], ids=["empty", "with_picks"])
+def test_footer_under_every_screen(settings_file, seeded):
+    from swingtrading.ui import disclaimer
+
+    if seeded:
+        _seed(settings_file)
+    at = AppTest.from_file(str(PROJECT_ROOT / "app" / "Home.py"), default_timeout=30)
+    at.run()  # the default screen; when empty it ends early with st.stop()
+    assert not at.exception
+    assert at.main.caption[-1].value == disclaimer.FOOTER
+    for page in PAGES:
+        at.switch_page(str(page.relative_to(PROJECT_ROOT / "app"))).run()
+        assert not at.exception, page
+        assert at.main.caption[-1].value == disclaimer.FOOTER, page
+        assert [c.value for c in at.main.caption].count(disclaimer.FOOTER) == 1, page

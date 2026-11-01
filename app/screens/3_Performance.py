@@ -2,7 +2,7 @@ import math
 
 import streamlit as st
 
-from swingtrading.ui import charts, data
+from swingtrading.ui import charts, data, disclaimer
 
 settings, conn = data.open_db()
 st.title("Performance")
@@ -13,7 +13,7 @@ if perf.equity.empty:
         "No picks have been entered yet, so there is nothing to measure. A signal enters at "
         "the next session's open; run the pipeline after that session's close."
     )
-    st.stop()
+    disclaimer.stop()
 
 
 def pct(x: float | None) -> str:

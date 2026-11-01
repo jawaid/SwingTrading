@@ -1,6 +1,6 @@
 import streamlit as st
 
-from swingtrading.ui import charts, data
+from swingtrading.ui import charts, data, disclaimer
 
 settings, conn = data.open_db()
 st.title("Current picks")
@@ -14,7 +14,7 @@ if df.empty:
     )
     if status["last_price_date"]:
         st.caption(f"Prices are stored through {status['last_price_date']}.")
-    st.stop()
+    disclaimer.stop()
 
 counts = df["status"].value_counts()
 c1, c2, c3 = st.columns(3)
