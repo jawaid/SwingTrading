@@ -164,3 +164,14 @@ def test_faq_covers_every_current_picks_column(settings_file):
         assert column in titles, column
     assert [t.label for t in at.tabs] == ["The basics", "Current picks", "Past picks",
                                           "Performance", "About and settings"]  # fmt: skip
+
+
+def test_disclaimer_is_shown(settings_file):
+    from swingtrading.ui import disclaimer
+
+    assert "educational purposes only" in disclaimer.text()
+    assert not disclaimer.text().startswith("#")
+    about = _run(PROJECT_ROOT / "app" / "screens" / "4_About_and_Settings.py")
+    assert "licensed financial advisor" in about.warning[0].value
+    faq = _run(PROJECT_ROOT / "app" / "screens" / "5_FAQ.py")
+    assert "Is this financial advice?" in {e.label for e in faq.expander}

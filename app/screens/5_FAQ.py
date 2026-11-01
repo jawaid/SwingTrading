@@ -1,6 +1,6 @@
 import streamlit as st
 
-from swingtrading.ui import data
+from swingtrading.ui import data, disclaimer
 
 settings, conn = data.open_db()
 m = f"{settings.stops.atr_mult:g}"
@@ -34,6 +34,7 @@ with tab_basics:
          "5. **Trails a stop** under each pick, and \"sells\" when the price closes below it.\n\n"
          "It never places real orders. It suggests picks and keeps score. Nothing here is "
          "financial advice."),
+        ("Is this financial advice?", disclaimer.text()),
         ("When does it update?",
          "Once a day, Monday to Friday, at 5:30 PM US Eastern (4:30 PM Central). Prices are "
          "**end of day**, not live. Refresh the browser after the run to see the new numbers. "

@@ -4,6 +4,8 @@ An end-of-day swing trading signal and tracking app that runs locally on macOS. 
 
 It is a signals and tracking tool only. It never places orders, and it is not financial advice.
 
+> **For educational purposes only.** This is not financial advice. Stock trading involves substantial risk, and you can lose some or all of the money you invest. Consult a licensed financial advisor or other qualified professional before making any investment decision. See [DISCLAIMER.md](DISCLAIMER.md).
+
 See [CLAUDE.md](CLAUDE.md) for the domain rules and [BUILD_PLAN.md](BUILD_PLAN.md) for the build phases.
 
 ## Setup
@@ -135,4 +137,4 @@ uv run ruff format .
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The license covers this code only, not price or company data from Yahoo Finance or other sources. SwingTrading is a signals and tracking tool, not financial advice; it is provided as is, without warranty.
+MIT, see [LICENSE](LICENSE). The license covers this code only, not price or company data from Yahoo Finance or other sources. SwingTrading is provided as is, without warranty; see [DISCLAIMER.md](DISCLAIMER.md).

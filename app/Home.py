@@ -2,6 +2,8 @@
 
 import streamlit as st
 
+from swingtrading.ui import disclaimer
+
 st.set_page_config(page_title="SwingTrading", page_icon=":chart_with_upwards_trend:",
                    layout="wide")  # fmt: skip
 
@@ -14,5 +16,5 @@ pages = [
             icon=":material/settings:"),
     st.Page("screens/5_FAQ.py", title="FAQ", icon=":material/help:"),
 ]  # fmt: skip
-st.sidebar.caption("End-of-day signals and tracking. Not financial advice.")
+st.sidebar.caption(disclaimer.SHORT)
 st.navigation(pages).run()

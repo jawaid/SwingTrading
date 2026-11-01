@@ -4,13 +4,12 @@ import streamlit as st
 from pydantic import ValidationError
 
 from swingtrading.config import load_settings, save_settings, settings_path
-from swingtrading.ui import charts, data, runner
+from swingtrading.ui import charts, data, disclaimer, runner
 from swingtrading.ui.settings_form import EDITABLE_SECTIONS, apply, fields, label
 
 settings, conn = data.open_db()
 st.title("About and settings")
-st.warning("SwingTrading is a signals and tracking tool. It never places orders, and nothing "
-           "here is financial advice.", icon=":material/info:")  # fmt: skip
+st.warning(disclaimer.text() + "\n\nSwingTrading never places orders.", icon=":material/info:")
 
 # ---- run status and Run now --------------------------------------------------------------
 st.header("Daily run")
