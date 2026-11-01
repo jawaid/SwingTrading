@@ -179,6 +179,8 @@ def test_disclaimer_is_shown(settings_file):
     assert "licensed financial advisor" in about.warning[0].value
     faq = _run(PROJECT_ROOT / "app" / "screens" / "5_FAQ.py")
     assert "Is this financial advice?" in {e.label for e in faq.expander}
+    assert faq.warning[0].value == disclaimer.RISK_WARNING
+    assert "Stock trading carries a high level of risk" in faq.warning[0].value
 
 
 @pytest.mark.parametrize("seeded", [False, True], ids=["empty", "with_picks"])

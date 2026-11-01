@@ -8,6 +8,7 @@ top = f"{settings.ranking.shortlist_pct:g}"
 period = settings.stops.atr_period
 
 st.title("FAQ")
+st.warning(disclaimer.RISK_WARNING, icon=":material/warning:")
 st.caption("What every screen and column means, in plain words. Open any question to read it.")
 
 
