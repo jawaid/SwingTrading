@@ -51,11 +51,12 @@ SwingTrading/
 │   └── cli.py              # entry points
 ├── app/
 │   ├── Home.py
-│   └── pages/
+│   └── screens/            # one file per screen (not pages/, which Streamlit auto-lists)
 │       ├── 1_Current_Picks.py
 │       ├── 2_Past_Picks.py
 │       ├── 3_Performance.py
-│       └── 4_About_and_Settings.py
+│       ├── 4_About_and_Settings.py
+│       └── 5_FAQ.py
 ├── scripts/
 │   ├── run_daily.sh
 │   └── install_launchd.sh

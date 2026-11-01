@@ -96,7 +96,7 @@ If the Mac was asleep and sessions were missed, the next run processes each one 
 
 ### App
 
-`swing app` starts the Streamlit app on your Mac only (localhost) and prints its address; stop it with Ctrl+C. It has four screens:
+`swing app` starts the Streamlit app on your Mac only (localhost) and prints its address; stop it with Ctrl+C. It has five screens:
 
 - **Current picks**: pending, open and exit-pending picks with price, stop, distance to stop, open P/L, SCTR and days held. Select a row for its chart: the close price, entry and exit markers, and the stop as a stepped dashed line.
 - **Past picks**: closed picks filtered by exit date and winners or losers, with the same chart.
@@ -104,6 +104,7 @@ If the Mac was asleep and sessions were missed, the next run processes each one 
 
 The equity curve holds every entered pick in equal weight each session, including picks still open, and compounds the day's average return. A pick earns from its entry price (the open) to the close on its entry day, and from the prior close to its exit price (the open) on its exit day. A day with nothing held earns nothing. SPY is measured over the same sessions. The math is in `swingtrading/performance.py`.
 - **About and settings**: how the method works, the last run's status, a **Run now** button (and a dry run) that runs `swing run` in the background and shows its log, and an editor for settings.yaml. Edits are validated before saving, and the file's comments are kept.
+- **FAQ**: what every screen and column means, in plain words, one question at a time.
 
 ## Automation
 

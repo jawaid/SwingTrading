@@ -6,12 +6,13 @@ st.set_page_config(page_title="SwingTrading", page_icon=":chart_with_upwards_tre
                    layout="wide")  # fmt: skip
 
 pages = [
-    st.Page("pages/1_Current_Picks.py", title="Current picks", icon=":material/trending_up:",
+    st.Page("screens/1_Current_Picks.py", title="Current picks", icon=":material/trending_up:",
             default=True),
-    st.Page("pages/2_Past_Picks.py", title="Past picks", icon=":material/history:"),
-    st.Page("pages/3_Performance.py", title="Performance", icon=":material/monitoring:"),
-    st.Page("pages/4_About_and_Settings.py", title="About and settings",
+    st.Page("screens/2_Past_Picks.py", title="Past picks", icon=":material/history:"),
+    st.Page("screens/3_Performance.py", title="Performance", icon=":material/monitoring:"),
+    st.Page("screens/4_About_and_Settings.py", title="About and settings",
             icon=":material/settings:"),
+    st.Page("screens/5_FAQ.py", title="FAQ", icon=":material/help:"),
 ]  # fmt: skip
 st.sidebar.caption("End-of-day signals and tracking. Not financial advice.")
 st.navigation(pages).run()

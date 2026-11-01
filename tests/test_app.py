@@ -13,7 +13,7 @@ from swingtrading.prices import save_bars
 from swingtrading.ui import charts, data, settings_form
 from tests.fixtures.synthetic import setup_frame
 
-PAGES = sorted((PROJECT_ROOT / "app" / "pages").glob("*.py"))
+PAGES = sorted((PROJECT_ROOT / "app" / "screens").glob("*.py"))
 
 
 @pytest.fixture
@@ -87,7 +87,7 @@ def test_page_renders_with_picks(settings_file, page):
 
 
 def test_settings_form_validates_and_saves(settings_file):
-    page = PROJECT_ROOT / "app" / "pages" / "4_About_and_Settings.py"
+    page = PROJECT_ROOT / "app" / "screens" / "4_About_and_Settings.py"
     at = _run(page)
     at.number_input(key="stops.atr_mult").set_value(3.0)
     at.button[-1].click().run()  # Save settings
@@ -152,3 +152,15 @@ def test_performance_data_from_the_database(settings_file):
     fig = charts.equity_chart(perf.equity, perf.benchmark)
     assert [t.name for t in fig.data] == ["Picks", "SPY"]
     conn.close()
+
+
+def test_faq_covers_every_current_picks_column(settings_file):
+    at = _run(PROJECT_ROOT / "app" / "screens" / "5_FAQ.py")
+    assert not at.exception
+    titles = {e.label for e in at.expander}
+    for column in ["Ticker", "Status", "Signal", "Entered", "Entry", "Price", "Stop", "To stop",
+                   "Open P/L", "SCTR", "Days held", "Setup score", "Exited", "Return",
+                   "Profit factor", "Max drawdown", "Run now and Dry run"]:  # fmt: skip
+        assert column in titles, column
+    assert [t.label for t in at.tabs] == ["The basics", "Current picks", "Past picks",
+                                          "Performance", "About and settings"]  # fmt: skip
