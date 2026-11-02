@@ -2,7 +2,7 @@ from datetime import date
 
 import streamlit as st
 
-from swingtrading.ui import charts, data, disclaimer
+from swingtrading.ui import charts, data, disclaimer, tables
 
 settings, conn = data.open_db()
 st.title("Past picks")
@@ -35,7 +35,7 @@ c2.metric("Winners", f"{wins:.0f}%")
 c3.metric("Average return", f"{shown['return_pct'].mean():+.1f}%")
 
 event = st.dataframe(
-    shown.drop(columns=["id"]),
+    tables.red_negatives(shown.drop(columns=["id"]), ["return_pct"]),
     hide_index=True,
     use_container_width=True,
     on_select="rerun",

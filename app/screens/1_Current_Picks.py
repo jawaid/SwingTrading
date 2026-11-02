@@ -1,6 +1,6 @@
 import streamlit as st
 
-from swingtrading.ui import charts, data, disclaimer
+from swingtrading.ui import charts, data, disclaimer, tables
 
 settings, conn = data.open_db()
 st.title("Current picks")
@@ -29,7 +29,7 @@ c3.metric(
 STATUS_TEXT = {"signal": "Pending entry", "open": "Open", "exit_pending": "Exit pending"}
 view = df.assign(status=df["status"].map(STATUS_TEXT)).drop(columns=["id"])
 event = st.dataframe(
-    view,
+    tables.red_negatives(view, ["distance_to_stop_pct", "open_pl_pct"]),
     hide_index=True,
     use_container_width=True,
     on_select="rerun",

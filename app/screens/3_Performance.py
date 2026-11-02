@@ -2,7 +2,7 @@ import math
 
 import streamlit as st
 
-from swingtrading.ui import charts, data, disclaimer
+from swingtrading.ui import charts, data, disclaimer, tables
 
 settings, conn = data.open_db()
 st.title("Performance")
@@ -58,7 +58,7 @@ st.caption(
 
 st.subheader("Monthly returns")
 st.dataframe(
-    perf.monthly,
+    tables.red_negatives(perf.monthly, ["picks_pct", "spy_pct"]),
     hide_index=True,
     column_config={
         "month": st.column_config.TextColumn("Month"),
