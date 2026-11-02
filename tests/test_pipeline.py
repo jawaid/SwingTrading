@@ -293,3 +293,45 @@ def test_pick_entered_this_morning_shows_no_pl_yet(conn, settings, provider):
     row = current_picks(conn).set_index("ticker").loc["PIV"]
     assert row["status"] == "open" and row["entry_price"] > 0
     assert pd.isna(row["open_pl_pct"]) and pd.isna(row["days_held"])
+
+
+class ThrottledProvider(FrameProvider):
+    """Leaves `dropped` out of the first `bad_calls` answers, as a throttled Yahoo would."""
+
+    def __init__(self, frames, dropped, bad_calls):
+        super().__init__(frames)
+        self.dropped, self.bad_calls = set(dropped), bad_calls
+
+    def history(self, tickers, start, end):
+        out = super().history(tickers, start, end)
+        return out[~out["ticker"].isin(self.dropped)] if self.calls <= self.bad_calls else out
+
+
+@pytest.fixture
+def no_wait(monkeypatch):
+    waits = []
+    monkeypatch.setattr(pipeline.time, "sleep", waits.append)
+    return waits
+
+
+def test_missing_prices_are_asked_for_again(conn, settings, no_wait):
+    settings.data.missing_retry_threshold = 1  # SPY (not in the test data) is always missing
+    provider = ThrottledProvider([_piv(), _flat()], dropped=["PIV", "FLAT"], bad_calls=2)
+    r = pipeline.run(conn, settings, provider, target=END, now=NOW)[0]
+    assert no_wait == [300.0, 300.0] and provider.calls == 3
+    assert r.new_picks == ["PIV"] and r.errors == 1  # only SPY still missing
+
+
+def test_a_few_missing_prices_are_not_waited_for(conn, settings, no_wait):
+    provider = ThrottledProvider([_piv(), _flat()], dropped=["FLAT"], bad_calls=99)
+    r = pipeline.run(conn, settings, provider, target=END, now=NOW)[0]
+    assert no_wait == [] and r.errors == 2  # FLAT and SPY: under 20, no active pick
+
+
+def test_an_active_pick_missing_its_price_is_always_asked_for(conn, settings, no_wait):
+    pipeline.run(conn, settings, FrameProvider([_piv(), _flat()]), target=END, now=NOW)
+    provider = ThrottledProvider([_piv(), _flat()], dropped=["PIV"], bad_calls=99)
+    reports = pipeline.run(conn, settings, provider, target=D1, now=NOW)
+    assert len(no_wait) == 3  # gives up after 3 rounds
+    assert reports[0].status == "success" and reports[0].errors >= 1
+    assert pos.picks(conn)[0]["status"] == "signal"  # left for the next run, as before

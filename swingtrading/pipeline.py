@@ -9,7 +9,11 @@ For each session to process, in order:
      an active pick, and create a signal for each setup.
   4. Write the session's `runs` row with counts.
 
-Prices are updated once, up to the last session, before the loop. Missed sessions (the
+Prices are updated once, up to the last session, before the loop. Yahoo sometimes throttles
+a run and leaves many tickers without the latest bar; when more than
+data.missing_retry_threshold tickers (or any ticker with an active pick) are missing it,
+the run waits data.missing_retry_wait_seconds and asks again for just those, up to
+data.missing_retry_rounds times. Missed sessions (the
 Mac was asleep) are processed one by one from the session after the last successful run,
 so nothing is skipped and nothing runs out of order. A session already processed is not
 processed again. A dry run does all of this on an in-memory copy of the database, so
@@ -34,6 +38,7 @@ import fcntl
 import logging
 import math
 import sqlite3
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -255,8 +260,7 @@ def _run_locked(
         # SPY too, even if it drops out of the universe: Performance compares against it.
         tickers = sorted(set(universe_tickers(work)) | set(active) | {performance.BENCHMARK})
         try:
-            prices = update_prices(work, settings, provider, tickers, target, now=now)
-            price_errors = len(prices.no_data) + len(prices.stale)
+            price_errors = _update_prices(work, settings, provider, tickers, active, target, now)
         except Exception as exc:
             log.exception("Price update failed")
             report = SessionReport(sessions[0], status="failed", error=f"prices: {exc}")
@@ -275,6 +279,34 @@ def _run_locked(
         if dry_run:
             work.close()
     return reports
+
+
+def _update_prices(
+    conn: sqlite3.Connection,
+    settings: Settings,
+    provider: PriceProvider,
+    tickers: list[str],
+    active: list[str],
+    target: date,
+    now: datetime | None,
+) -> int:
+    """Update prices through target, waiting and asking again for missing tickers while
+    there are many of them or one has an active pick. Returns how many are still missing."""
+    cfg = settings.data
+    prices = update_prices(conn, settings, provider, tickers, target, now=now)
+    for attempt in range(1, cfg.missing_retry_rounds + 1):
+        missing = sorted(set(prices.no_data) | set(prices.stale))
+        held = sorted(set(missing) & set(active))
+        if len(missing) <= cfg.missing_retry_threshold and not held:
+            break
+        log.warning(
+            "%d tickers have no bar for %s%s; asking again in %.0fs (round %d of %d)",
+            len(missing), target, f" (active picks: {' '.join(held)})" if held else "",
+            cfg.missing_retry_wait_seconds, attempt, cfg.missing_retry_rounds,
+        )  # fmt: skip
+        time.sleep(cfg.missing_retry_wait_seconds)
+        prices = update_prices(conn, settings, provider, missing, target, now=now)
+    return len(prices.no_data) + len(prices.stale)
 
 
 # ---- morning fill ---------------------------------------------------------------------

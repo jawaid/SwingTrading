@@ -62,6 +62,9 @@ data:
   retry_backoff_seconds: 2.0
   info_throttle_seconds: 0.5
   request_timeout_seconds: 60.0    # give up on a hung Yahoo call (price batches get 4x)
+  missing_retry_threshold: 20      # the run waits and asks again when more tickers than this
+  missing_retry_rounds: 3          # (or any ticker with an active pick) have no price for the
+  missing_retry_wait_seconds: 300  # session: up to this many rounds, this long apart
 
 schedule:
   timezone: America/New_York

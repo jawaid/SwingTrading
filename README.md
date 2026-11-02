@@ -91,7 +91,7 @@ The daily run drives this; there is no separate command.
 
 `swing run` does one end-of-day run after the close:
 
-1. Updates prices for the universe, every ticker with an active pick, and SPY (the Performance benchmark), up to the last completed session.
+1. Updates prices for the universe, every ticker with an active pick, and SPY (the Performance benchmark), up to the last completed session. Yahoo sometimes throttles a big download and leaves many tickers without the day's bar. When more than `missing_retry_threshold` tickers (default 20), or any ticker with an active pick, are missing it, the run waits `missing_retry_wait_seconds` (default 5 minutes) and asks again for just those, up to `missing_retry_rounds` times (default 3). So a throttled evening run can take up to 15 minutes longer.
 2. For each session not yet processed, in order: ranks the universe, takes the shortlist, fills exits and entries at that session's open, trails stops and flags stop-outs on its close, then scans the shortlist (skipping tickers with an active pick) and creates a signal for each setup.
 3. Records a row per session in `runs` with counts (universe, shortlist, new picks, stops raised, exits, errors), prints a summary, and shows a macOS notification.
 
