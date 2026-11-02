@@ -8,10 +8,11 @@ settings, conn = data.open_db()
 st.title("Performance")
 perf = data.performance_data(conn)
 
-if perf.equity.empty:
+if len(perf.equity) < 2:  # nothing entered, or entered today and no close since
     st.info(
-        "No picks have been entered yet, so there is nothing to measure. A signal enters at "
-        "the next session's open; run the pipeline after that session's close."
+        "No picks have been held through a close yet, so there is nothing to measure. A "
+        "signal enters at the next session's open; results start after that session's "
+        "evening run."
     )
     disclaimer.stop()
 

@@ -46,6 +46,14 @@ def last_completed_session(now: datetime | None = None, buffer_minutes: int = 30
     return done.index[-1].date()
 
 
+def session_open(day: date) -> datetime | None:
+    """When the session on `day` opens (UTC), or None if `day` is not a session."""
+    sched = _schedule(day, day)
+    if sched.empty:
+        return None
+    return sched["market_open"].iloc[0].to_pydatetime()
+
+
 def previous_session(day: date, n: int = 1) -> date:
     """The session `n` sessions before `day` (day itself need not be a session)."""
     if n < 1:

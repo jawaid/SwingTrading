@@ -42,6 +42,7 @@ uv run swing update-prices         # fetch only sessions missing since the last 
 uv run swing rank [--date YYYY-MM-DD] [--top 25]   # SCTR rankings from stored prices
 uv run swing scan [--date YYYY-MM-DD]              # setups in the stored shortlist (read-only)
 uv run swing run [--date YYYY-MM-DD] [--dry-run]   # the daily pipeline
+uv run swing fill-open                              # morning: fill today's entries/exits at the open
 uv run swing app [--port 8501]     # the app at http://localhost:8501
 ```
 
@@ -94,6 +95,10 @@ The daily run drives this; there is no separate command.
 2. For each session not yet processed, in order: ranks the universe, takes the shortlist, fills exits and entries at that session's open, trails stops and flags stop-outs on its close, then scans the shortlist (skipping tickers with an active pick) and creates a signal for each setup.
 3. Records a row per session in `runs` with counts (universe, shortlist, new picks, stops raised, exits, errors), prints a summary, and shows a macOS notification.
 
+### Morning fill
+
+`swing fill-open` runs shortly after the open (10:00 AM US Eastern by default) and records today's fills early: picks due to enter today are filled at today's opening price, with their initial stop, and exit-pending picks are closed at it. It does nothing else and writes no prices; the evening run still stores the day's bar, checks stops and scans, and leaves the already-filled picks alone, so the results are the same as without it. It only runs when the evening run is up to date through the previous session and the market has been open `open_buffer_minutes` (default 15); otherwise it does nothing and the evening run fills the picks as before. A ticker with no opening price yet is left for the evening run.
+
 If the Mac was asleep and sessions were missed, the next run processes each one from the session after the last successful run. Running it again for a session already processed does nothing. Only one run happens at a time: a run started while another is going (the scheduled run and **Run now**, say) stops straight away with "another run is already in progress". A failed session stops the run there and is retried next time. `--date YYYY-MM-DD` processes up to that session instead (a weekend or holiday is logged and skipped). `--dry-run` runs everything on an in-memory copy of the database, prints the summary, and writes nothing; it still downloads the latest prices, so it takes a few minutes.
 
 ### App
@@ -110,15 +115,16 @@ The equity curve holds every entered pick in equal weight each session, includin
 
 ## Automation
 
-Two launchd jobs run SwingTrading on its own:
+Three launchd jobs run SwingTrading on its own:
 
 - `com.jawaid.swingtrading`: the evening run, `scripts/run_daily.sh`, Monday to Friday at 5:30 PM US Eastern (4:30 PM on a Mac set to Central time). The installer converts the time to the Mac's time zone. On a market holiday the run sees the market was closed, records a skipped session and does nothing else.
+- `com.jawaid.swingtrading.morning`: the morning fill, `scripts/run_morning.sh`, Monday to Friday at 10:00 AM US Eastern (9:00 AM Central). It logs to the same `daily_YYYY-MM-DD.log`, and launchd's output goes to `data/logs/launchd_morning.log`.
 - `com.jawaid.swingtrading.app`: keeps the app running at http://localhost:8502. It starts at login and restarts if it stops.
 
 ```bash
-scripts/install_launchd.sh            # install or reinstall both (run again after moving time zones)
+scripts/install_launchd.sh            # install or reinstall all three (run again after moving time zones)
 scripts/install_launchd.sh status     # loaded? running? last exit code
-scripts/install_launchd.sh uninstall  # remove both
+scripts/install_launchd.sh uninstall  # remove all three
 ```
 
 **Logs:** each evening run appends to `data/logs/daily_YYYY-MM-DD.log` (the `swing run` summary) and `data/logs/run_YYYY-MM-DD.log` (detailed). launchd's own output goes to `data/logs/launchd_daily.log`, and the app's to `data/logs/app_server.log`. The About and settings screen also shows the last run.

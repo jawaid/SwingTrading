@@ -221,3 +221,75 @@ def test_notifier_quiet_when_nothing_to_do(conn, settings, provider):
     pipeline.run(conn, settings, provider, target=END, now=NOW, notifier=sent.append)
     pipeline.run(conn, settings, provider, target=date(2026, 10, 25), now=NOW, notifier=sent.append)
     assert sent == []
+
+
+MORNING_D1 = datetime(2026, 10, 29, 14, 0, tzinfo=UTC)  # 10:00 AM Eastern on D1
+
+
+def test_morning_fill_enters_at_the_open(conn, settings, provider):
+    pipeline.run(conn, settings, provider, target=END, now=NOW)
+    sent = []
+    r = pipeline.fill_at_open(conn, settings, provider, now=MORNING_D1, notifier=sent.append)
+    open_d1 = _piv().set_index("date").loc[D1, "open"]
+    assert r.status == "success" and r.entries == [("PIV", pytest.approx(open_d1))]
+    pick = pos.picks(conn)[0]
+    assert pick["status"] == "open" and pick["entry_date"] == D1.isoformat()
+    assert pick["initial_stop"] == pytest.approx(open_d1 - 2.5 * pick["signal_atr"])
+    assert conn.execute("SELECT COUNT(*) FROM prices WHERE date = ?", (str(D1),)).fetchone()[0] == 0
+    assert "Entered at the open: PIV" in sent[0]
+    # Again the same morning: nothing left to fill.
+    assert pipeline.fill_at_open(conn, settings, provider, now=MORNING_D1).status == "skipped"
+
+
+def test_evening_run_after_a_morning_fill_matches_a_plain_run(tmp_path, settings, provider):
+    def final(morning: bool) -> list[dict]:
+        c = db.connect(tmp_path / f"m{morning}.db")
+        with db.transaction(c):
+            c.executemany(
+                "INSERT INTO symbols (ticker, name, exchange) VALUES (?, ?, 'Q')",
+                [("PIV", "Pivot Inc"), ("FLAT", "Flat Co")],
+            )
+        pipeline.run(c, settings, provider, target=END, now=NOW)
+        if morning:
+            pipeline.fill_at_open(c, settings, provider, now=MORNING_D1)
+        reports = pipeline.run(c, settings, provider, now=NOW)
+        assert [r.status for r in reports] == ["success", "success"]
+        out = [{k: v for k, v in p.items() if k != "updated_at"} for p in pos.picks(c)]
+        c.close()
+        return out
+
+    assert final(morning=True) == final(morning=False)
+
+
+@pytest.mark.parametrize(
+    ("now", "reason"),
+    [
+        (datetime(2026, 10, 29, 13, 35, tzinfo=UTC), "not been open long enough"),  # 9:35 ET
+        (datetime(2026, 10, 25, 15, 0, tzinfo=UTC), "not a trading session"),  # Sunday
+        (datetime(2026, 10, 30, 14, 0, tzinfo=UTC), "evening run is behind"),  # D1 not run
+    ],
+)
+def test_morning_fill_skips(conn, settings, provider, now, reason):
+    pipeline.run(conn, settings, provider, target=END, now=NOW)
+    r = pipeline.fill_at_open(conn, settings, provider, now=now)
+    assert r.status == "skipped" and reason in r.reason
+    assert pos.picks(conn)[0]["status"] == "signal" and provider.calls == 1
+
+
+def test_morning_fill_without_an_opening_price_leaves_the_pick(conn, settings):
+    data = FrameProvider([_piv(), _flat()])
+    pipeline.run(conn, settings, data, target=END, now=NOW)
+    data.data = data.data[data.data["date"] <= END]  # Yahoo has no bar for today yet
+    r = pipeline.fill_at_open(conn, settings, data, now=MORNING_D1)
+    assert r.status == "success" and r.entries == [] and r.missing == ["PIV"]
+    assert pos.picks(conn)[0]["status"] == "signal"
+
+
+def test_pick_entered_this_morning_shows_no_pl_yet(conn, settings, provider):
+    from swingtrading.ui.data import current_picks
+
+    pipeline.run(conn, settings, provider, target=END, now=NOW)
+    pipeline.fill_at_open(conn, settings, provider, now=MORNING_D1)
+    row = current_picks(conn).set_index("ticker").loc["PIV"]
+    assert row["status"] == "open" and row["entry_price"] > 0
+    assert pd.isna(row["open_pl_pct"]) and pd.isna(row["days_held"])

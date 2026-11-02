@@ -19,18 +19,27 @@ Only one run (or dry run) at a time: a run holds a lock file next to the databas
 second run started meanwhile (the scheduled run and Run now, say) stops with
 RunInProgressError instead of processing the same session twice. The operating system
 releases the lock if a run crashes, so it never goes stale.
+
+The morning fill (fill_at_open) records the open-price fills early: shortly after the
+open it takes today's opening price for picks due to enter or exit today and fills them,
+so they don't wait for the evening run. It only fills; the evening run still stores the
+day's bar, checks stops and scans. It does nothing unless the evening run is up to date
+through the previous session (otherwise the evening catch-up fills each pick on the
+session it was due), and the evening run leaves already-filled picks alone.
 """
 
 from __future__ import annotations
 
 import fcntl
 import logging
+import math
 import sqlite3
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from swingtrading import db, market_calendar, performance, positions
 from swingtrading.config import Settings
@@ -266,6 +275,93 @@ def _run_locked(
         if dry_run:
             work.close()
     return reports
+
+
+# ---- morning fill ---------------------------------------------------------------------
+
+
+@dataclass
+class OpenFillReport:
+    session: date
+    status: str = "success"  # success, skipped or failed
+    reason: str | None = None  # why it was skipped, or the error
+    entries: list[tuple[str, float]] = field(default_factory=list)  # ticker, entry price
+    exits: list[tuple[str, float]] = field(default_factory=list)  # ticker, return_pct
+    missing: list[str] = field(default_factory=list)  # due but no opening price yet
+
+
+def fill_at_open(
+    conn: sqlite3.Connection,
+    settings: Settings,
+    provider: PriceProvider,
+    now: datetime | None = None,
+    notifier: Callable[[str], object] | None = None,
+) -> OpenFillReport:
+    """Fill today's due entries and exits at today's opening price. Writes no prices."""
+    now = now or datetime.now(UTC)
+    today = now.astimezone(ZoneInfo(settings.schedule.timezone)).date()
+    report = OpenFillReport(today)
+    opens_at = market_calendar.session_open(today)
+    if opens_at is None:
+        report.status, report.reason = "skipped", "not a trading session"
+        return report
+    if now < opens_at + timedelta(minutes=settings.schedule.open_buffer_minutes):
+        report.status, report.reason = "skipped", "the market has not been open long enough"
+        return report
+
+    with run_lock(conn):
+        if last_processed(conn) != market_calendar.previous_session(today):
+            report.status = "skipped"
+            report.reason = "the evening run is behind; it fills these when it catches up"
+            return report
+        due = [p for p in positions.picks(conn, ("signal",)) if p["signal_date"] < str(today)]
+        due += [
+            p
+            for p in positions.picks(conn, ("exit_pending",))
+            if p["exit_signal_date"] < str(today)
+        ]
+        if not due:
+            report.status, report.reason = "skipped", "no picks due to fill today"
+            return report
+        try:
+            bars = provider.history(sorted({p["ticker"] for p in due}), today, today)
+            today_bars = {
+                r.ticker: positions.SessionBar(float(r.open), float(r.close), math.nan)
+                for r in bars.itertuples()
+                if r.date == today
+            }
+            life = positions.LifecycleResult()
+            with transaction(conn):
+                positions.fill_exits(conn, today, today_bars, life)
+                positions.fill_entries(conn, today, today_bars, settings.stops.atr_mult, life)
+        except Exception as exc:
+            log.exception("Morning fill for %s failed", today)
+            report.status, report.reason = "failed", f"{type(exc).__name__}: {exc}"
+            return report
+        for pid in life.entries:
+            p = positions.get_pick(conn, pid)
+            report.entries.append((p["ticker"], p["entry_price"]))
+        for pid in life.exits:
+            p = positions.get_pick(conn, pid)
+            report.exits.append((p["ticker"], p["return_pct"]))
+        report.missing = sorted(set(life.missing))
+    if notifier and (report.entries or report.exits or report.status == "failed"):
+        notifier(format_open_fill(report))
+    return report
+
+
+def format_open_fill(r: OpenFillReport) -> str:
+    head = f"Morning fill {r.session}"
+    if r.status != "success":
+        return f"{head}: {'FAILED - ' if r.status == 'failed' else ''}{r.reason}"
+    lines = [f"{head}: {len(r.entries)} entered, {len(r.exits)} closed"]
+    if r.entries:
+        lines.append("  Entered at the open: " + ", ".join(f"{t} {p:.2f}" for t, p in r.entries))
+    if r.exits:
+        lines.append("  Closed at the open: " + ", ".join(f"{t} {x:+.1%}" for t, x in r.exits))
+    if r.missing:
+        lines.append(f"  No opening price yet (the evening run fills these): {' '.join(r.missing)}")
+    return "\n".join(lines)
 
 
 # ---- output -------------------------------------------------------------------------

@@ -127,6 +127,7 @@ class ScheduleSettings(_Section):
     timezone: str = "America/New_York"
     run_time: str = "17:30"
     close_buffer_minutes: int = Field(30, ge=0)
+    open_buffer_minutes: int = Field(15, ge=0)
 
     @model_validator(mode="after")
     def _check_run_time(self) -> Self:

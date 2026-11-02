@@ -67,3 +67,4 @@ schedule:
   timezone: America/New_York
   run_time: "17:30"                # Monday-Friday, US Eastern
   close_buffer_minutes: 30         # a session counts as complete this long after the close
+  open_buffer_minutes: 15          # the morning fill waits this long after the open

@@ -32,6 +32,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="run the daily pipeline")
     run.add_argument("--date", help="session date YYYY-MM-DD (default: last completed session)")
     run.add_argument("--dry-run", action="store_true", help="compute and print, write nothing")
+    sub.add_parser("fill-open", help="fill today's due entries and exits at the opening price")
     app = sub.add_parser("app", help="launch the Streamlit app")
     app.add_argument("--port", type=int, default=8501, help="local port (default: 8501)")
     return parser
@@ -167,6 +168,21 @@ def run_cmd(conn: sqlite3.Connection, settings: Settings, day: str | None, dry_r
     return 1 if any(r.status == "failed" for r in reports) else 0
 
 
+def fill_open_cmd(conn: sqlite3.Connection, settings: Settings) -> int:
+    from swingtrading import notify, pipeline
+    from swingtrading.data.yahoo import YahooPriceProvider
+
+    try:
+        report = pipeline.fill_at_open(
+            conn, settings, YahooPriceProvider(settings.data), notifier=notify.send
+        )
+    except pipeline.RunInProgressError as exc:
+        print(f"Not started: {exc}.")
+        return 1
+    print("\n" + pipeline.format_open_fill(report))
+    return 1 if report.status == "failed" else 0
+
+
 def app_cmd(settings: Settings, settings_file: str | None, port: int) -> int:
     """Run the Streamlit app in the foreground until Ctrl+C."""
     import os
@@ -205,6 +221,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return rank_cmd(conn, settings, args.date, args.top)
         if args.command == "run":
             return run_cmd(conn, settings, args.date, args.dry_run)
+        if args.command == "fill-open":
+            return fill_open_cmd(conn, settings)
         if args.command == "scan":
             return scan_cmd(conn, settings, args.date)
         if args.command in ("backfill", "update-prices"):

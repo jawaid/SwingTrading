@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The weekday morning fill: scripts/run_morning.sh, Monday-Friday at 10:00 AM US Eastern
+     (9:00 AM Central), 30 minutes after the open. It records today's entries and exits at
+     the opening price; the evening run does everything else. launchd uses the Mac's local
+     time; scripts/install_launchd.sh recomputes the times for this Mac's time zone. If the
+     Mac is asleep then, launchd runs the job once when it wakes. -->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.jawaid.swingtrading.morning</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/sh</string>
+		<string>/Users/jawaidekram/Projects/SwingTrading/scripts/run_morning.sh</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/jawaidekram/Projects/SwingTrading</string>
+	<key>StartCalendarInterval</key>
+	<array>
+		<dict>
+			<key>Weekday</key>
+			<integer>1</integer>
+			<key>Hour</key>
+			<integer>9</integer>
+			<key>Minute</key>
+			<integer>0</integer>
+		</dict>
+		<dict>
+			<key>Weekday</key>
+			<integer>2</integer>
+			<key>Hour</key>
+			<integer>9</integer>
+			<key>Minute</key>
+			<integer>0</integer>
+		</dict>
+		<dict>
+			<key>Weekday</key>
+			<integer>3</integer>
+			<key>Hour</key>
+			<integer>9</integer>
+			<key>Minute</key>
+			<integer>0</integer>
+		</dict>
+		<dict>
+			<key>Weekday</key>
+			<integer>4</integer>
+			<key>Hour</key>
+			<integer>9</integer>
+			<key>Minute</key>
+			<integer>0</integer>
+		</dict>
+		<dict>
+			<key>Weekday</key>
+			<integer>5</integer>
+			<key>Hour</key>
+			<integer>9</integer>
+			<key>Minute</key>
+			<integer>0</integer>
+		</dict>
+	</array>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>StandardOutPath</key>
+	<string>/Users/jawaidekram/Projects/SwingTrading/data/logs/launchd_morning.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/jawaidekram/Projects/SwingTrading/data/logs/launchd_morning.log</string>
+</dict>
+</plist>

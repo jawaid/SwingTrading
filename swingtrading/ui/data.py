@@ -62,6 +62,8 @@ def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
     for p in rows:
         last_date, last_close = latest.get(p["ticker"], (None, None))
         entry, stop = p["entry_price"], p["current_stop"]
+        if p["entry_date"] and last_date and last_date < date.fromisoformat(p["entry_date"]):
+            last_date = None  # entered this morning: no close since the entry yet
         out.append(
             {
                 **{k: p[k] for k in ("id", "ticker", "status", "signal_date", "entry_date",
@@ -70,7 +72,9 @@ def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
                 "distance_to_stop_pct": (last_close / stop - 1) * 100
                 if stop and last_close
                 else None,
-                "open_pl_pct": (last_close / entry - 1) * 100 if entry and last_close else None,
+                "open_pl_pct": (last_close / entry - 1) * 100
+                if entry and last_close and last_date
+                else None,
                 "sctr": sctr.get(p["ticker"], p["sctr_at_signal"]),
                 "days_held": _sessions_held(p["entry_date"], last_date),
             }

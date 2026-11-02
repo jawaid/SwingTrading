@@ -37,14 +37,22 @@ with tab_basics:
          "financial advice."),
         ("Is this financial advice?", disclaimer.text()),
         ("When does it update?",
-         "Once a day, Monday to Friday, at 5:30 PM US Eastern (4:30 PM Central). Prices are "
-         "**end of day**, not live. Refresh the browser after the run to see the new numbers. "
-         "On weekends and market holidays nothing changes."),
+         "Twice a day, Monday to Friday:\n\n"
+         "- **9:00 AM Central** (10:00 AM Eastern), 30 minutes after the open: picks due to "
+         "buy or sell today are recorded at today's **opening price**. Nothing else changes.\n"
+         "- **4:30 PM Central** (5:30 PM Eastern), after the close: the main run. It stores "
+         "the day's prices, moves stops, sells picks that closed below their stop, and finds "
+         "new picks.\n\n"
+         "Prices are **end of day**, not live: between runs the numbers don't change. Refresh "
+         "the browser after a run to see the new numbers. On weekends and market holidays "
+         "nothing changes."),
         ("When is a pick bought?",
          "At the **opening price of the next trading day** after the signal. A signal on "
          "Friday buys at Monday's open, whatever that open is, higher or lower than Friday's "
-         "close. The evening run that day records it. If a stock has no price that day (for "
-         "example a trading halt), it buys on the next day it has one."),
+         "close. The 9:00 AM Central morning run records it, so it shows as **Open** from "
+         "then on (if the morning run didn't happen, the evening run records it). If a stock "
+         "has no price that day (for example a trading halt), it buys on the next day it has "
+         "one."),
         ("When is a pick sold?",
          "Only when the stock **closes below its stop**. It then sells at the next day's open. "
          "There is no profit target, no \"too extended\" rule and no time limit: a stock that "
@@ -142,8 +150,8 @@ pick isn't picked again.
 
 ### Step 6: Buy at the next open
 
-The next trading day the pick is **bought at the opening price**, whatever it is. That
-evening's run records it, and the status becomes **Open**.
+The next trading day the pick is **bought at the opening price**, whatever it is. The
+morning run (9:00 AM Central) records it, and the status becomes **Open**.
 
 ### Step 7: Set the safety stop
 
@@ -201,6 +209,7 @@ with tab_current:
          "2. **Open**: bought. Each evening the stop moves up if the stock made a new high "
          "close.\n"
          "3. **Exit pending**: closed below the stop. Sells at the next day's open.\n\n"
+         "Buys and sells at the open are recorded by the 9:00 AM Central morning run.\n\n"
          "After it sells it moves to **Past picks**."),
         ("Signal",
          "The date the setup was found, from that day's closing prices. The stock was in "

@@ -59,8 +59,9 @@ SwingTrading/
 │       └── 5_FAQ.py
 ├── scripts/
 │   ├── run_daily.sh
+│   ├── run_morning.sh
 │   └── install_launchd.sh
-├── launchd/com.jawaid.swingtrading.plist
+├── launchd/                # evening run, morning fill and app jobs
 ├── data/                   # gitignored: swing.db, logs, caches
 └── tests/
 ```
@@ -129,6 +130,7 @@ Raw score components:
 - Only use bars for sessions that are fully complete (per NYSE calendar, after 4:00 PM ET plus a buffer). Never use a partial current-day bar.
 - Idempotent: the `runs` table records the last processed session. If sessions were missed (Mac asleep), process each missed session in order.
 - Skip non-trading days cleanly with a log line.
+- Morning fill (`swing fill-open`, 10:00 AM ET): after the open, fill entries and exits due today at today's opening price. Only fills; stores no bars and changes nothing else. Runs only when the evening run is current through the previous session. The evening run must give the same result with or without it.
 - `--dry-run` computes everything and prints a summary without writing to the DB.
 - Each run writes a row to `runs` with counts: universe size, shortlist size, new picks, stops raised, exits, errors.
 
