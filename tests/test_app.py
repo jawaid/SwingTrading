@@ -314,3 +314,47 @@ def test_current_picks_support_is_the_pullback_low(settings_file):
     assert list(df.columns).index("support") == list(df.columns).index("current_stop") + 1
     assert df.iloc[0]["support"] == pytest.approx(255.67)
     conn.close()
+
+
+def _support_bars(highs, closes):
+    days = pd.bdate_range("2026-10-26", periods=len(highs)).date
+    return pd.DataFrame({"date": days, "high": highs, "low": [c - 1 for c in closes],
+                         "close": closes})  # fmt: skip
+
+
+SUPPORT_PICK = {"signal_date": "2026-10-29", "setup_details": json.dumps(
+    {"swing_high_date": "2026-10-26", "swing_high": 50.0, "pullback_low": 46.0})}  # fmt: skip
+
+
+def test_support_moves_up_to_a_broken_high():
+    # Oct 26 high 50, dip, then closes above 50 from Oct 30.
+    bars = _support_bars([50, 49, 48, 49, 52, 53], [49.5, 48, 47, 48.5, 51, 52])
+    assert data.support_level(SUPPORT_PICK, bars)[1] == 46.0
+    assert data.support_now(SUPPORT_PICK, bars) == (date(2026, 10, 30), 50.0)
+
+
+def test_support_climbs_to_a_later_swing_high_and_falls_back():
+    # Breaks 50, peaks at 55 on Nov 2, dips, then closes above 55 on Nov 6.
+    highs = [50, 49, 48, 49, 52, 55, 53, 52, 54, 57]
+    closes = [49.5, 48, 47, 48.5, 51, 54, 52, 51, 53, 56]
+    assert data.support_now(SUPPORT_PICK, _support_bars(highs, closes)) == (date(2026, 11, 6), 55)
+    # Back under 55 but above 50: the 50 floor again.
+    fell = _support_bars(highs + [55], closes + [52])
+    assert data.support_now(SUPPORT_PICK, fell) == (date(2026, 10, 30), 50.0)
+    # Under 50 too: back to the pullback low.
+    deep = _support_bars(highs + [55], closes + [48])
+    assert data.support_now(SUPPORT_PICK, deep)[1] == 46.0
+
+
+def test_chart_shows_pullback_low_and_raised_support():
+    pick = {**SUPPORT_PICK, "ticker": "X", "entry_date": None, "exit_date": None}
+    bars = _support_bars([50, 49, 48, 49, 52, 53], [49.5, 48, 47, 48.5, 51, 52]).assign(
+        open=lambda d: d["close"]
+    )
+    history = pd.DataFrame(columns=["date", "close", "stop"])
+    fig = charts.pick_chart(bars, pick, history, "", data.support_level(pick, bars),
+                            data.support_now(pick, bars))  # fmt: skip
+    lines = {t.name: t for t in fig.data}
+    assert lines["Support"].y[0] == 50.0 and lines["Support"].x[0] == date(2026, 10, 30)
+    assert lines["Pullback low"].y[0] == 46.0
+    assert {a.text for a in fig.layout.annotations} == {"Support 50.00", "Pullback low 46.00"}

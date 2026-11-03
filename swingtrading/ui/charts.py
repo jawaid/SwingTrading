@@ -17,6 +17,7 @@ SCTR_GRADIENT = f"linear-gradient(90deg, {RED} 0%, {AMBER} 50%, {TEAL} 100%)"
 
 EMA_COLORS = ["#7F9CF5", "#B794F4"]  # shorter, longer moving average
 SUPPORT = "#4A5568"
+PULLBACK_LOW = "#A0AEC0"  # the setup's pullback low, once support has moved above it
 
 
 def pick_chart(
@@ -25,10 +26,13 @@ def pick_chart(
     history: pd.DataFrame,
     subtitle: str = "",
     support: tuple[date, float] | None = None,
+    support_now: tuple[date, float] | None = None,
 ) -> go.Figure:
     """Daily candles with moving averages (any `ema_<period>` columns in `bars`), entry and
     exit markers, the stepped dashed stop line and a dotted support line, each labelled
-    with its level at the right."""
+    with its level at the right. When support has moved up (`support_now` above the
+    pullback low `support`), the pullback low stays as a lighter dotted line and the
+    current support is drawn from the day it broke out."""
     fig = go.Figure()
     fig.add_trace(
         go.Candlestick(
@@ -56,8 +60,22 @@ def pick_chart(
     if last is not None and not pick.get("exit_date"):
         right = pd.bdate_range(pd.Timestamp(last), periods=6)[-1].date()
     labels: list[tuple[float, str, str]] = []
+    moved = support is not None and support_now is not None and support_now[1] > support[1]
     if support is not None and right is not None:
         start, level = support
+        name, color, width = (
+            ("Pullback low", PULLBACK_LOW, 1.5) if moved else ("Support", SUPPORT, 2)
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[start, right], y=[level, level], name=name, mode="lines",
+                line={"color": color, "width": width, "dash": "dot"},
+                hovertemplate=f"{name} {level:.2f}<extra></extra>",
+            )
+        )  # fmt: skip
+        labels.append((level, f"{name} {level:.2f}", color))
+    if moved and right is not None:
+        start, level = support_now
         fig.add_trace(
             go.Scatter(
                 x=[start, right], y=[level, level], name="Support", mode="lines",

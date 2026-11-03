@@ -43,7 +43,9 @@ event = st.dataframe(
         "current_price": st.column_config.NumberColumn("Price", format="%.2f"),
         "current_stop": st.column_config.NumberColumn("Stop", format="%.2f"),
         "support": st.column_config.NumberColumn(
-            "Support", format="%.2f", help="The pullback low the stock bounced from"
+            "Support",
+            format="%.2f",
+            help="Nearest floor: the pullback low, raised to each high it has broken above",
         ),
         "distance_to_stop_pct": st.column_config.NumberColumn("To stop", format="%.1f%%"),
         "open_pl_pct": st.column_config.NumberColumn("Open P/L", format="%+.1f%%"),

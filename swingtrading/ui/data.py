@@ -54,14 +54,19 @@ CURRENT_COLUMNS = ["id", "ticker", "status", "signal_date", "entry_date", "entry
 
 def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
     """Signal, open and exit-pending picks with their latest price, P/L and SCTR. Support is
-    the setup's pullback low, the same level the chart draws."""
+    where it stands now (`support_now`), the same level the chart labels."""
     rows = picks(conn, db.ACTIVE_PICK_STATUSES)
     if not rows:
         return pd.DataFrame(columns=CURRENT_COLUMNS)
     latest = _latest_closes(conn, sorted({p["ticker"] for p in rows}))
     sctr = _latest_sctr(conn)
+    starts = [setup_details(p).get("swing_high_date") or p["signal_date"] for p in rows]
+    bars = load_bars(
+        conn, sorted({p["ticker"] for p in rows}), start=date.fromisoformat(min(starts))
+    )
     out = []
     for p in rows:
+        support = support_now(p, bars[bars["ticker"] == p["ticker"]].reset_index(drop=True))
         last_date, last_close = latest.get(p["ticker"], (None, None))
         entry, stop = p["entry_price"], p["current_stop"]
         if p["entry_date"] and last_date and last_date < date.fromisoformat(p["entry_date"]):
@@ -71,7 +76,7 @@ def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
                 **{k: p[k] for k in ("id", "ticker", "status", "signal_date", "entry_date",
                                      "entry_price", "current_stop", "setup_score")},
                 "current_price": last_close,
-                "support": setup_details(p).get("pullback_low"),
+                "support": support[1] if support else None,
                 "distance_to_stop_pct": (last_close / stop - 1) * 100
                 if stop and last_close
                 else None,
@@ -157,6 +162,41 @@ def support_level(pick: dict, bars: pd.DataFrame) -> tuple[date, float] | None:
     window = bars[(bars["date"] > after) & (bars["date"] <= signal)]
     day = window.loc[window["low"].idxmin(), "date"] if not window.empty else signal
     return day, level
+
+
+PIVOT_BARS = 2  # a swing high is the highest high of the 2 sessions either side of it
+
+
+def support_now(pick: dict, bars: pd.DataFrame) -> tuple[date, float] | None:
+    """Support as it stands on the last bar, and the day it took that level. It starts at
+    the pullback low; each time a close clears a ceiling (the setup's swing high, or a
+    later swing high) that ceiling becomes the new floor. The highest broken ceiling at or
+    below the last close wins; if the price has fallen back under all of them, it is the
+    pullback low again. Display only: no trading rule uses it."""
+    base = support_level(pick, bars)
+    details = setup_details(pick)
+    if base is None or bars.empty or "swing_high" not in details:
+        return base
+    high_day = date.fromisoformat(details["swing_high_date"])
+    b = bars[bars["date"] >= high_day].reset_index(drop=True)
+    if b.empty:
+        return base
+    ceilings = [(0, float(details["swing_high"]))]
+    k = PIVOT_BARS
+    for i in range(1, len(b) - k):
+        h = b["high"].iloc[i]
+        if (
+            h > b["high"].iloc[max(0, i - k) : i].max()
+            and h >= b["high"].iloc[i + 1 : i + k + 1].max()
+        ):
+            ceilings.append((i + k, float(h)))  # known as a swing high only k sessions later
+    last_close = float(b["close"].iloc[-1])
+    best = base
+    for known, level in ceilings:
+        above = b.index[(b.index > known) & (b["close"] > level)]
+        if len(above) and base[1] < level <= last_close and level > best[1]:
+            best = (b["date"].iloc[above[0]], level)
+    return best
 
 
 @dataclass

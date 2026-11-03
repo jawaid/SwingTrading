@@ -29,8 +29,9 @@ def _body(conn: sqlite3.Connection, settings: Settings, pick: dict) -> None:
         conn, pick, ema_periods=(settings.setup.trend_ema_period, settings.ranking.long_ema_period)
     )
     fig = charts.pick_chart(
-        bars, pick, history, data.company(conn, pick["ticker"]), data.support_level(pick, bars)
-    )
+        bars, pick, history, data.company(conn, pick["ticker"]),
+        data.support_level(pick, bars), data.support_now(pick, bars),
+    )  # fmt: skip
     name = f"{pick['ticker']}_{pick['signal_date']}"
     components.html(charts.chart_html(fig, name), height=CHART_HEIGHT)
     reasons = data.why_selected(pick, settings)
