@@ -192,8 +192,14 @@ with tab_current:
     section([
         ("☐ Checkbox",
          "Tick a row to see that stock's chart below the table. Without a tick, the chart "
-         "shows the first row.\n\n"
-         "- **Dark line**: the closing price.\n"
+         "shows the first row. The title shows the ticker, company name and industry.\n\n"
+         "- **Candles**: each day's open, high, low and close. Green: closed higher than it "
+         "opened. Red: closed lower.\n"
+         "- **Blue line (50 EMA)** and **purple line (200 EMA)**: the 50- and 200-day moving "
+         "averages, the medium- and long-term trend. The setup needs the price to stay above "
+         "the 50 EMA during the pullback; the 200 EMA is part of the SCTR rank.\n"
+         "- **Dotted grey line (support)**: the lowest price of the pullback before the "
+         "signal, where buyers stepped in. A fall back through it means the bounce failed.\n"
          "- **Small circle**: the signal day.\n"
          "- **Green triangle up**: where it was bought.\n"
          "- **Dashed green line**: the stop, stepping up as the price rises.\n"
@@ -290,8 +296,9 @@ with tab_past:
     )
     section([
         ("☐ Checkbox",
-         "Tick a row to see that pick's chart: the price, signal circle, buy triangle, the "
-         "stop as it stepped up, and the red sell triangle."),
+         "Tick a row to see that pick's chart: daily candles, the 50 and 200 EMA, the "
+         "support line, the signal circle, buy triangle, the stop as it stepped up, and the "
+         "red sell triangle. It reads the same as the Current picks chart."),
         ("Ticker", "The stock's trading symbol."),
         ("Signal", "The date the setup was found."),
         ("Entered", "The date it was bought: the trading day after the signal."),

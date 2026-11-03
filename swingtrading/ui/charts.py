@@ -13,16 +13,48 @@ GRID = "#E2E8F0"
 SCTR_GRADIENT = f"linear-gradient(90deg, {RED} 0%, {AMBER} 50%, {TEAL} 100%)"
 
 
-def pick_chart(bars: pd.DataFrame, pick: dict, history: pd.DataFrame) -> go.Figure:
-    """Close price line, entry and exit markers, and the stepped dashed stop line."""
+EMA_COLORS = ["#7F9CF5", "#B794F4"]  # shorter, longer moving average
+SUPPORT = "#A0AEC0"
+
+
+def pick_chart(
+    bars: pd.DataFrame,
+    pick: dict,
+    history: pd.DataFrame,
+    subtitle: str = "",
+    support: float | None = None,
+) -> go.Figure:
+    """Daily candles with moving averages (any `ema_<period>` columns in `bars`), entry and
+    exit markers, the stepped dashed stop line and a dotted support line."""
     fig = go.Figure()
     fig.add_trace(
-        go.Scatter(
-            x=bars["date"], y=bars["close"], name="Close", mode="lines",
-            line={"color": SLATE, "width": 2},
-            hovertemplate="%{x|%b %d, %Y}<br>Close %{y:.2f}<extra></extra>",
+        go.Candlestick(
+            x=bars["date"], open=bars["open"], high=bars["high"], low=bars["low"],
+            close=bars["close"], name="Price",
+            increasing={"line": {"color": TEAL}, "fillcolor": TEAL},
+            decreasing={"line": {"color": RED}, "fillcolor": RED},
         )
     )  # fmt: skip
+    ema_columns = sorted(
+        (c for c in bars.columns if c.startswith("ema_")), key=lambda c: int(c[4:])
+    )
+    for i, column in enumerate(ema_columns):
+        fig.add_trace(
+            go.Scatter(
+                x=bars["date"], y=bars[column], name=f"{column[4:]} EMA", mode="lines",
+                line={"color": EMA_COLORS[i % len(EMA_COLORS)], "width": 1.5},
+                hovertemplate=f"{column[4:]} EMA %{{y:.2f}}<extra></extra>",
+            )
+        )  # fmt: skip
+    if support is not None and not bars.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=[bars["date"].iloc[0], bars["date"].iloc[-1]], y=[support, support],
+                name=f"Support {support:.2f}", mode="lines",
+                line={"color": SUPPORT, "width": 1.5, "dash": "dot"},
+                hovertemplate=f"Support {support:.2f}<extra></extra>",
+            )
+        )  # fmt: skip
     if not history.empty:
         fig.add_trace(
             go.Scatter(
@@ -46,13 +78,17 @@ def pick_chart(bars: pd.DataFrame, pick: dict, history: pd.DataFrame) -> go.Figu
                     hovertemplate=f"{name} %{{x|%b %d, %Y}}<br>%{{y:.2f}}<extra></extra>",
                 )
             )  # fmt: skip
+    title = f"<b>{pick['ticker']}</b>"
+    if subtitle:
+        title += f"  <span style='font-size:14px;color:#4A5568'>{subtitle}</span>"
     fig.update_layout(
         template="plotly_white",
-        height=380,
-        margin={"l": 10, "r": 10, "t": 30, "b": 10},
-        legend={"orientation": "h", "y": 1.08, "x": 0},
+        height=460,
+        margin={"l": 10, "r": 10, "t": 70, "b": 10},
+        legend={"orientation": "h", "y": 1.02, "yanchor": "bottom", "x": 0},
         hovermode="x unified",
-        title={"text": pick["ticker"], "x": 0, "font": {"color": SLATE}},
+        title={"text": title, "x": 0, "y": 0.98, "font": {"color": SLATE}},
+        xaxis_rangeslider_visible=False,
     )
     fig.update_xaxes(gridcolor=GRID, rangebreaks=[{"bounds": ["sat", "mon"]}])
     fig.update_yaxes(gridcolor=GRID, tickformat=".2f")

@@ -105,7 +105,7 @@ If the Mac was asleep and sessions were missed, the next run processes each one 
 
 `swing app` starts the Streamlit app on your Mac only (localhost) and prints its address; stop it with Ctrl+C. It has five screens:
 
-- **Current picks**: pending, open and exit-pending picks with price, stop, distance to stop, open P/L, SCTR and days held. Select a row for its chart: the close price, entry and exit markers, and the stop as a stepped dashed line.
+- **Current picks**: pending, open and exit-pending picks with price, stop, distance to stop, open P/L, SCTR and days held. Select a row for its chart, titled with the ticker, company name and industry: daily candles, the 50 and 200 EMA (the setup's trend EMA and SCTR's long EMA, from settings), the setup's pullback low as a dotted support line, entry and exit markers, and the stop as a stepped dashed line.
 - **Past picks**: closed picks filtered by exit date and winners or losers, with the same chart.
 - **Performance**: for closed picks, win rate, average win and loss, profit factor (gross gains over gross losses), expectancy (average return per pick) and average days held. Then an equity curve against SPY with its max drawdown, and a monthly returns table for both.
 

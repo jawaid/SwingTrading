@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import date
 
 import pandas as pd
 
-from swingtrading import db, market_calendar, performance
+from swingtrading import db, indicators, market_calendar, performance
 from swingtrading.config import Settings, load_settings
 from swingtrading.positions import picks, stop_history
 from swingtrading.prices import load_bars
@@ -101,17 +102,50 @@ def past_picks(conn: sqlite3.Connection) -> pd.DataFrame:
 
 
 def pick_chart_data(
-    conn: sqlite3.Connection, pick: dict, before: int = 30
+    conn: sqlite3.Connection, pick: dict, before: int = 30, ema_periods: tuple[int, ...] = ()
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Bars from `before` sessions ahead of the signal to the exit (or latest), and the
-    pick's stop history."""
+    pick's stop history. Each period in `ema_periods` adds an `ema_<period>` column,
+    computed over earlier bars too so it is settled by the first bar shown."""
     signal = date.fromisoformat(pick["signal_date"])
     start = market_calendar.previous_session(signal, before)
+    warmup = 3 * max(ema_periods, default=0)
+    first = market_calendar.previous_session(start, warmup) if warmup else start
     end = date.fromisoformat(pick["exit_date"]) if pick["exit_date"] else None
-    bars = load_bars(conn, [pick["ticker"]], start=start, end=end)
+    bars = load_bars(conn, [pick["ticker"]], start=first, end=end)
+    for period in ema_periods:
+        bars[f"ema_{period}"] = indicators.ema(bars["close"], period)
+    bars = bars[bars["date"] >= start].reset_index(drop=True)
     history = pd.DataFrame(stop_history(conn, pick["id"]), columns=["date", "close", "stop"])
     history["date"] = [date.fromisoformat(d) for d in history["date"]]
     return bars, history
+
+
+_SHARE_CLASS = re.compile(
+    r"\s*(-\s*)?(Class [A-Z] )?(Common Stock|Common Shares|Ordinary Shares|"
+    r"American Depositary Shares|Depositary Shares|Representing Limited Partner).*$",
+    re.IGNORECASE,
+)
+
+
+def company(conn: sqlite3.Connection, ticker: str) -> str:
+    """'Company name · Industry' for a chart title, e.g. 'Paycom Software, Inc. · Software -
+    Application'. ETFs show their fund category. Empty if the ticker is unknown."""
+    row = conn.execute(
+        "SELECT name, industry, fund_category, quote_type FROM symbols WHERE ticker = ?",
+        (ticker,),
+    ).fetchone()
+    if row is None:
+        return ""
+    name = _SHARE_CLASS.sub("", row["name"] or "").strip(" -")
+    group = row["industry"] or row["fund_category"] or ("ETF" if row["quote_type"] == "ETF" else "")
+    return " · ".join(part for part in (name, group) if part)
+
+
+def support_level(pick: dict) -> float | None:
+    """The setup's pullback low: the level the stock bounced from before the signal."""
+    value = setup_details(pick).get("pullback_low")
+    return float(value) if value is not None else None
 
 
 @dataclass

@@ -144,7 +144,7 @@ Raw score components:
 
 ## UI guidance
 Four screens minimum, in the sidebar in this order:
-1. **Current picks**: table of pending/open picks (ticker, entry, current price, stop, distance to stop %, open P/L %, SCTR, days held). Selecting a row shows a Plotly chart: price line, entry marker, stepped dashed stop line, matching the style in the original mockup.
+1. **Current picks**: table of pending/open picks (ticker, entry, current price, stop, distance to stop %, open P/L %, SCTR, days held). Selecting a row shows a Plotly chart titled with ticker, company name and industry: daily candlesticks, the 50 and 200 EMA, the pullback low as a support line, entry marker, stepped dashed stop line, matching the style in the original mockup.
 2. **Past picks**: closed trades with filters (date range, winners/losers), each with the same chart.
 3. **Performance**: win rate, average win vs. average loss, profit factor, expectancy, average days held, equity curve of an equal-weighted portfolio of open picks vs. SPY, monthly returns table.
 4. **About and settings**: plain-language methodology (the 0–99.99 scale gradient bar, how the stop trails), last run status, editable settings with validation, and a "Run now" button.

@@ -56,5 +56,10 @@ event = st.dataframe(
 rows = event.selection.rows if event and event.selection else []
 st.caption("Select a row to see its chart.")
 pick = next(p for p in data.picks(conn) if p["id"] == int(shown.iloc[rows[0] if rows else 0]["id"]))
-bars, history = data.pick_chart_data(conn, pick)
-st.plotly_chart(charts.pick_chart(bars, pick, history), use_container_width=True)
+bars, history = data.pick_chart_data(
+    conn, pick, ema_periods=(settings.setup.trend_ema_period, settings.ranking.long_ema_period)
+)
+fig = charts.pick_chart(
+    bars, pick, history, data.company(conn, pick["ticker"]), data.support_level(pick)
+)
+st.plotly_chart(fig, use_container_width=True)

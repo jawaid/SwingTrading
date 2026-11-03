@@ -121,7 +121,7 @@ def test_pick_chart_has_stepped_dashed_teal_stop(settings_file):
     fig = charts.pick_chart(*_chart_args(conn, pick))
     stop = next(t for t in fig.data if t.name == "Stop")
     assert stop.line.shape == "hv" and stop.line.dash == "dash" and stop.line.color == charts.TEAL
-    assert next(t for t in fig.data if t.name == "Close").line.color == charts.SLATE
+    assert next(t for t in fig.data if t.name == "Price").type == "candlestick"
     assert {t.name for t in fig.data} >= {"Entry", "Signal"}
     conn.close()
 
@@ -129,6 +129,41 @@ def test_pick_chart_has_stepped_dashed_teal_stop(settings_file):
 def _chart_args(conn, pick):
     bars, history = data.pick_chart_data(conn, pick)
     return bars, pick, history
+
+
+def test_pick_chart_moving_averages_support_and_title(settings_file):
+    _seed(settings_file)
+    s, conn = data.open_db(load_settings(settings_file))
+    pick = {**data.picks(conn)[0], "setup_details": '{"pullback_low": 95.5}'}
+    bars, history = data.pick_chart_data(conn, pick, ema_periods=(10, 20))
+    plain, _ = data.pick_chart_data(conn, pick)
+    assert list(bars["date"]) == list(plain["date"])  # warm-up bars are not shown
+    assert bars["ema_10"].notna().all() and bars["ema_20"].notna().all()
+    fig = charts.pick_chart(bars, pick, history, "Acme Inc · Widgets", data.support_level(pick))
+    names = [t.name for t in fig.data]
+    assert "10 EMA" in names and "20 EMA" in names and "Support 95.50" in names
+    assert "Acme Inc · Widgets" in fig.layout.title.text
+    conn.close()
+
+
+def test_company_name_and_industry(settings_file):
+    _seed(settings_file)
+    s, conn = data.open_db(load_settings(settings_file))
+    with conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO symbols (ticker, name, exchange, industry, quote_type,"
+            " fund_category) VALUES (?, ?, 'Q', ?, ?, ?)",
+            [("PAYC", "Paycom Software, Inc. Common Stock", "Software - Application", "EQUITY",
+              None),
+             ("FSLY", "Fastly, Inc. - Class A Common Stock", "Software - Infrastructure",
+              "EQUITY", None),
+             ("SPY", "SPDR S&P 500 ETF Trust", None, "ETF", "Large Blend")],
+        )  # fmt: skip
+    assert data.company(conn, "PAYC") == "Paycom Software, Inc. · Software - Application"
+    assert data.company(conn, "FSLY") == "Fastly, Inc. · Software - Infrastructure"
+    assert data.company(conn, "SPY") == "SPDR S&P 500 ETF Trust · Large Blend"
+    assert data.company(conn, "NOPE") == ""
+    conn.close()
 
 
 def test_settings_form_helpers():
