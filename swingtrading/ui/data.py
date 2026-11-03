@@ -48,12 +48,13 @@ def _sessions_held(start: str | None, end: date | None) -> int | None:
 
 
 CURRENT_COLUMNS = ["id", "ticker", "status", "signal_date", "entry_date", "entry_price",
-                   "current_price", "current_stop", "distance_to_stop_pct", "open_pl_pct",
-                   "sctr", "days_held", "setup_score"]  # fmt: skip
+                   "current_price", "current_stop", "support", "distance_to_stop_pct",
+                   "open_pl_pct", "sctr", "days_held", "setup_score"]  # fmt: skip
 
 
 def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
-    """Signal, open and exit-pending picks with their latest price, P/L and SCTR."""
+    """Signal, open and exit-pending picks with their latest price, P/L and SCTR. Support is
+    the setup's pullback low, the same level the chart draws."""
     rows = picks(conn, db.ACTIVE_PICK_STATUSES)
     if not rows:
         return pd.DataFrame(columns=CURRENT_COLUMNS)
@@ -70,6 +71,7 @@ def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
                 **{k: p[k] for k in ("id", "ticker", "status", "signal_date", "entry_date",
                                      "entry_price", "current_stop", "setup_score")},
                 "current_price": last_close,
+                "support": setup_details(p).get("pullback_low"),
                 "distance_to_stop_pct": (last_close / stop - 1) * 100
                 if stop and last_close
                 else None,
@@ -81,7 +83,7 @@ def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
             }
         )  # fmt: skip
     df = pd.DataFrame(out)[CURRENT_COLUMNS]
-    numeric = ["entry_price", "current_price", "current_stop", "distance_to_stop_pct",
+    numeric = ["entry_price", "current_price", "current_stop", "support", "distance_to_stop_pct",
                "open_pl_pct", "sctr", "days_held", "setup_score"]  # fmt: skip
     df[numeric] = df[numeric].astype(float)  # None -> NaN, which tables show as blank
     df["entry_date"] = df["entry_date"].fillna("")

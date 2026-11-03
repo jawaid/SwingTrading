@@ -254,6 +254,14 @@ with tab_current:
          f"to that close minus {m} ATRs. **It never moves down.**\n"
          "- **Only the close counts.** A dip below the stop during the day does nothing.\n\n"
          "On the chart it is the dashed green line."),
+        ("Support",
+         "The lowest price of the dip before the signal: where buyers stepped in and the "
+         "stock turned up. It is fixed when the setup is found and does not change.\n\n"
+         "- **Price well above support**: the bounce is holding.\n"
+         "- **Price back near or below support**: the bounce failed; the stop usually sells "
+         "it soon after.\n\n"
+         "It is only information; the sell rule is the **Stop**. On the chart it is the "
+         "dotted dark line."),
         ("To stop",
          "How far the price is above the stop, in percent: (Price ÷ Stop − 1) × 100. "
          "Example: price 264.20, stop 244.62 → **8.0%**, so the stock can fall about 8% "

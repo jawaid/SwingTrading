@@ -111,6 +111,7 @@ def test_current_picks_numbers(settings_file):
     assert row["open_pl_pct"] == pytest.approx((last[0] / 101 - 1) * 100)
     assert row["distance_to_stop_pct"] == pytest.approx((last[0] / 97 - 1) * 100)
     assert row["days_held"] == 8
+    assert pd.isna(row["support"])  # the seeded setup has no pullback low
     past = data.past_picks(conn).iloc[0]
     assert past["return_pct"] == pytest.approx(-1.98)
     conn.close()
@@ -216,8 +217,8 @@ def test_faq_covers_every_current_picks_column(settings_file):
     at = _run(PROJECT_ROOT / "app" / "screens" / "5_FAQ.py")
     assert not at.exception
     titles = {e.label for e in at.expander}
-    for column in ["Ticker", "Status", "Signal", "Entered", "Entry", "Price", "Stop", "To stop",
-                   "Open P/L", "SCTR", "Days held", "Setup score", "Exited", "Return",
+    for column in ["Ticker", "Status", "Signal", "Entered", "Entry", "Price", "Stop", "Support",
+                   "To stop", "Open P/L", "SCTR", "Days held", "Setup score", "Exited", "Return",
                    "Profit factor", "Max drawdown", "Run now and Dry run"]:  # fmt: skip
         assert column in titles, column
     assert [t.label for t in at.tabs] == ["The basics", "Logic", "Current picks", "Past picks",
@@ -302,3 +303,14 @@ def test_chart_opens_from_a_button(settings_file):
     assert not at.exception
     show = next(b for b in at.button if "Show chart" in b.label)
     assert show.disabled  # until a row is ticked
+
+
+def test_current_picks_support_is_the_pullback_low(settings_file):
+    _seed(settings_file)
+    s, conn = data.open_db(load_settings(settings_file))
+    conn.execute("UPDATE picks SET setup_details = ? WHERE ticker = 'AAA'",
+                 (json.dumps(PAYC_DETAILS),))  # fmt: skip
+    df = data.current_picks(conn)
+    assert list(df.columns).index("support") == list(df.columns).index("current_stop") + 1
+    assert df.iloc[0]["support"] == pytest.approx(255.67)
+    conn.close()
