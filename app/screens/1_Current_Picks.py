@@ -1,6 +1,6 @@
 import streamlit as st
 
-from swingtrading.ui import charts, data, disclaimer, tables
+from swingtrading.ui import data, disclaimer, pick_dialog, tables
 
 settings, conn = data.open_db()
 st.title("Current picks")
@@ -50,17 +50,10 @@ event = st.dataframe(
     },
 )
 rows = event.selection.rows if event and event.selection else []
-st.caption("Select a row to see its chart.")
-i = rows[0] if rows else 0
-pick = next(p for p in data.picks(conn) if p["id"] == int(df.iloc[i]["id"]))
-bars, history = data.pick_chart_data(
-    conn, pick, ema_periods=(settings.setup.trend_ema_period, settings.ranking.long_ema_period)
-)
-fig = charts.pick_chart(
-    bars, pick, history, data.company(conn, pick["ticker"]), data.support_level(pick, bars)
-)
-st.plotly_chart(fig, use_container_width=True)
-details = data.setup_details(pick)
-if details:
-    with st.expander("Setup details"):
-        st.json(details)
+if rows:
+    pick = next(p for p in data.picks(conn) if p["id"] == int(df.iloc[rows[0]]["id"]))
+    if st.button(f"📈 Show chart: {pick['ticker']}", type="primary"):
+        pick_dialog.show(settings, pick)
+else:
+    st.button("📈 Show chart", disabled=True)
+    st.caption("Tick a row, then click **Show chart** to open its chart and why it was picked.")

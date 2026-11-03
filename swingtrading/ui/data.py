@@ -200,6 +200,48 @@ def setup_details(pick: dict) -> dict:
     return json.loads(pick["setup_details"]) if pick.get("setup_details") else {}
 
 
+def why_selected(pick: dict, settings: Settings) -> list[str]:
+    """Plain-English reasons the pick was made: one markdown line per rule it passed, with
+    the stock's number next to the limit from settings."""
+    r, s = settings.ranking, settings.setup
+    out = []
+    if pick.get("sctr_at_signal") is not None:
+        out.append(
+            f"**Strong stock:** SCTR {pick['sctr_at_signal']:.1f} out of 100 on the signal "
+            f"day, in the top {r.shortlist_pct:g}% of the universe (only those are scanned)."
+        )
+    d = setup_details(pick)
+    if d.get("detector") != "pullback_pivot" or "swing_high" not in d:
+        return out
+    high_day = date.fromisoformat(d["swing_high_date"]).strftime("%b %d")
+    down = (
+        "There were no down days in the dip."
+        if d["down_volume_ratio"] == 0
+        else f"Volume on the down days was {d['down_volume_ratio']:.2f}× its "
+        f"{s.volume_avg_period}-day average (must be below {s.down_volume_max_ratio:g}×)."
+    )
+    out += [
+        f"**Recent high:** it reached {d['swing_high']:.2f} on {high_day}, its highest in the "
+        f"last {s.swing_high_lookback} sessions.",
+        f"**Healthy dip:** it pulled back {d['depth_pct']:.1f}% ({d['depth_atr']:.1f} times its "
+        f"daily move, ATR) to {d['pullback_low']:.2f} over {d['pullback_bars']} session(s). "
+        f"Allowed: {s.pullback_min_pct:g}–{s.pullback_max_pct:g}%, {s.pullback_min_atr:g}–"
+        f"{s.pullback_max_atr:g} ATR, at most {s.max_pullback_sessions} sessions.",
+        f"**Quiet selling:** {down}",
+        f"**Trend held:** no close below the {s.trend_ema_period}-day EMA during the dip.",
+        f"**Turned up:** on the signal day it closed above the prior day's high, "
+        f"{d['close_in_range'] * 100:.0f}% of the way up the day's range (needs "
+        f"{s.pivot_close_range_min * 100:.0f}%+), on {d['pivot_volume_ratio']:.2f}× its "
+        f"{s.pivot_volume_period}-day average volume (needs {s.pivot_volume_min_ratio:g}×+).",
+    ]
+    if pick.get("setup_score") is not None:
+        out.append(
+            f"**Setup score {pick['setup_score']:.0f} / 100:** how cleanly it passed (dip "
+            "depth, quiet selling, turn-up volume, strong close; a quarter each)."
+        )
+    return out
+
+
 def runs(conn: sqlite3.Connection, limit: int = 20) -> pd.DataFrame:
     return pd.read_sql_query(
         "SELECT * FROM runs ORDER BY session_date DESC LIMIT ?", conn, params=(limit,)

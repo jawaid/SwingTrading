@@ -256,3 +256,49 @@ def test_footer_under_every_screen(settings_file, seeded):
         assert not at.exception, page
         assert at.main.caption[-1].value == disclaimer.FOOTER, page
         assert [c.value for c in at.main.caption].count(disclaimer.FOOTER) == 1, page
+
+
+PAYC_DETAILS = {"detector": "pullback_pivot", "swing_high_date": "2026-10-23",
+                "swing_high": 275.22, "pullback_low": 255.67, "depth_pct": 7.1,
+                "depth_atr": 2.58, "pullback_bars": 4, "down_volume_ratio": 0.82,
+                "pivot_volume_ratio": 1.18, "close_in_range": 0.69, "atr": 7.5708}  # fmt: skip
+
+
+def test_why_selected_explains_each_rule(settings_file):
+    s = load_settings(settings_file)
+    pick = {"sctr_at_signal": 98.3, "setup_score": 41.8,
+            "setup_details": json.dumps(PAYC_DETAILS)}  # fmt: skip
+    reasons = data.why_selected(pick, s)
+    assert [r.split(":**")[0] for r in reasons] == [
+        "**Strong stock", "**Recent high", "**Healthy dip", "**Quiet selling",
+        "**Trend held", "**Turned up", "**Setup score 42 / 100",
+    ]  # fmt: skip
+    text = "\n".join(reasons)
+    for part in ["SCTR 98.3", "top 15%", "275.22 on Oct 23", "7.1%", "2.6 times", "255.67",
+                 "4 session(s)", "0.82×", "below 1×", "50-day EMA", "69%", "1.18×"]:  # fmt: skip
+        assert part in text, part
+
+
+def test_why_selected_without_down_days_or_details(settings_file):
+    s = load_settings(settings_file)
+    quiet = {**PAYC_DETAILS, "down_volume_ratio": 0.0}
+    reasons = data.why_selected({"setup_details": json.dumps(quiet)}, s)
+    assert any("no down days" in r for r in reasons)
+    only_rank = data.why_selected({"sctr_at_signal": 90.0, "setup_details": None}, s)
+    assert len(only_rank) == 1 and "SCTR 90.0" in only_rank[0]
+
+
+def test_chart_html_has_copy_button():
+    import plotly.graph_objects as go
+
+    html = charts.chart_html(go.Figure(), "PAYC_2026-10-30")
+    assert 'id="copy"' in html and "Copy chart" in html and 'id="chart"' in html
+    assert "clipboard.write" in html and "downloadImage" in html and "PAYC_2026-10-30" in html
+
+
+def test_chart_opens_from_a_button(settings_file):
+    _seed(settings_file)
+    at = _run(PROJECT_ROOT / "app" / "screens" / "1_Current_Picks.py")
+    assert not at.exception
+    show = next(b for b in at.button if "Show chart" in b.label)
+    assert show.disabled  # until a row is ticked

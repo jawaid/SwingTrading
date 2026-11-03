@@ -191,8 +191,8 @@ with tab_current:
     )
     section([
         ("☐ Checkbox",
-         "Tick a row to see that stock's chart below the table. Without a tick, the chart "
-         "shows the first row. The title shows the ticker, company name and industry.\n\n"
+         "Tick a row, then click **Show chart** under the table. The chart opens in a pop-up. "
+         "The title shows the ticker, company name and industry.\n\n"
          "- **Candles**: each day's open, high, low and close. Green: closed higher than it "
          "opened. Red: closed lower.\n"
          "- **Blue line (50 EMA)** and **purple line (200 EMA)**: the 50- and 200-day moving "
@@ -208,7 +208,14 @@ with tab_current:
          "- **Red triangle down**: where it was sold.\n\n"
          "The current **Stop** and **Support** levels are written at the right edge of the "
          "chart.\n\n"
-         "**Setup details** under the chart shows the raw numbers behind the setup."),
+         "**Copy chart** (top right of the chart) copies a picture of it, ready to paste into "
+         "a message or document. If your browser doesn't allow copying, it downloads the "
+         "picture instead. **Close** (or the × at the top) closes the pop-up.\n\n"
+         "**Why it was picked**, under the chart, lists each rule the stock passed in plain "
+         "English: its SCTR rank, the recent high, how deep and how long the dip was, how "
+         "quiet the selling was, that the trend held, and how it turned up on the signal "
+         "day, each with the stock's number next to the limit. The limits are today's "
+         "settings. **Raw setup numbers** shows the same numbers as stored."),
         ("Ticker",
          "The stock's trading symbol, for example PAYC (Paycom), COP (ConocoPhillips) or HRB "
          "(H&R Block). A ticker can have only one active pick at a time; it can be picked "
@@ -300,9 +307,10 @@ with tab_past:
     )
     section([
         ("☐ Checkbox",
-         "Tick a row to see that pick's chart: daily candles, the 50 and 200 EMA, the "
-         "support line, the signal circle, buy triangle, the stop as it stepped up, and the "
-         "red sell triangle. It reads the same as the Current picks chart."),
+         "Tick a row, then click **Show chart** to open that pick's chart in a pop-up: daily "
+         "candles, the 50 and 200 EMA, the support line, the signal circle, buy triangle, the "
+         "stop as it stepped up, and the red sell triangle, with **Why it was picked**, "
+         "**Copy chart** and **Close**. It reads the same as the Current picks pop-up."),
         ("Ticker", "The stock's trading symbol."),
         ("Signal", "The date the setup was found."),
         ("Entered", "The date it was bought: the trading day after the signal."),

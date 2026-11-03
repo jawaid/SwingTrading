@@ -179,3 +179,38 @@ def equity_chart(equity: pd.Series, benchmark: pd.Series) -> go.Figure:
     fig.update_xaxes(gridcolor=GRID, rangebreaks=[{"bounds": ["sat", "mon"]}])
     fig.update_yaxes(gridcolor=GRID, ticksuffix="%", tickformat=".0f")
     return fig
+
+
+def chart_html(fig: go.Figure, name: str = "chart") -> str:
+    """The figure as a standalone HTML snippet with a **Copy chart** button that puts a PNG
+    of it on the clipboard, ready to paste into a message or document."""
+    div = fig.to_html(
+        full_html=False, include_plotlyjs="cdn", div_id="chart", config={"displaylogo": False}
+    )
+    return f"""
+<style>
+  body {{ margin: 0; font-family: "Source Sans Pro", sans-serif; }}
+  .bar {{ display: flex; justify-content: flex-end; align-items: center; gap: 10px; }}
+  .bar button {{ border: 1px solid #CBD5E0; background: #fff; color: {SLATE}; border-radius: 8px;
+    padding: 4px 12px; font-size: 14px; cursor: pointer; }}
+  .bar button:hover {{ border-color: {TEAL}; color: {TEAL}; }}
+  #msg {{ font-size: 13px; color: #718096; }}
+</style>
+<div class="bar"><span id="msg"></span><button id="copy">📋 Copy chart</button></div>
+{div}
+<script>
+  const msg = document.getElementById("msg");
+  document.getElementById("copy").onclick = async () => {{
+    const gd = document.getElementById("chart");
+    const png = Plotly.toImage(gd, {{format: "png", scale: 2}})
+      .then((url) => fetch(url)).then((r) => r.blob());
+    try {{
+      await navigator.clipboard.write([new ClipboardItem({{"image/png": png}})]);
+      msg.textContent = "Copied. Paste it anywhere.";
+    }} catch (e) {{
+      Plotly.downloadImage(gd, {{format: "png", scale: 2, filename: {name!r}}});
+      msg.textContent = "Copy isn't allowed here, so it was downloaded instead.";
+    }}
+  }};
+</script>
+"""
