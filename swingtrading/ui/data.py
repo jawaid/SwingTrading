@@ -142,10 +142,19 @@ def company(conn: sqlite3.Connection, ticker: str) -> str:
     return " · ".join(part for part in (name, group) if part)
 
 
-def support_level(pick: dict) -> float | None:
-    """The setup's pullback low: the level the stock bounced from before the signal."""
-    value = setup_details(pick).get("pullback_low")
-    return float(value) if value is not None else None
+def support_level(pick: dict, bars: pd.DataFrame) -> tuple[date, float] | None:
+    """The setup's pullback low (the level the stock bounced from before the signal) and
+    the day it was made: the lowest low after the swing high, up to the signal day."""
+    details = setup_details(pick)
+    if details.get("pullback_low") is None:
+        return None
+    level = float(details["pullback_low"])
+    signal = date.fromisoformat(pick["signal_date"])
+    high_day = details.get("swing_high_date")
+    after = date.fromisoformat(high_day) if high_day else date.min
+    window = bars[(bars["date"] > after) & (bars["date"] <= signal)]
+    day = window.loc[window["low"].idxmin(), "date"] if not window.empty else signal
+    return day, level
 
 
 @dataclass

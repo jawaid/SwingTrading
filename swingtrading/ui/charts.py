@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -14,7 +16,7 @@ SCTR_GRADIENT = f"linear-gradient(90deg, {RED} 0%, {AMBER} 50%, {TEAL} 100%)"
 
 
 EMA_COLORS = ["#7F9CF5", "#B794F4"]  # shorter, longer moving average
-SUPPORT = "#A0AEC0"
+SUPPORT = "#4A5568"
 
 
 def pick_chart(
@@ -22,10 +24,11 @@ def pick_chart(
     pick: dict,
     history: pd.DataFrame,
     subtitle: str = "",
-    support: float | None = None,
+    support: tuple[date, float] | None = None,
 ) -> go.Figure:
     """Daily candles with moving averages (any `ema_<period>` columns in `bars`), entry and
-    exit markers, the stepped dashed stop line and a dotted support line."""
+    exit markers, the stepped dashed stop line and a dotted support line, each labelled
+    with its level at the right."""
     fig = go.Figure()
     fig.add_trace(
         go.Candlestick(
@@ -46,22 +49,37 @@ def pick_chart(
                 hovertemplate=f"{column[4:]} EMA %{{y:.2f}}<extra></extra>",
             )
         )  # fmt: skip
-    if support is not None and not bars.empty:
+    # Open picks get a few empty sessions on the right so today's stop and support show
+    # as levels, with room for their labels.
+    last = bars["date"].iloc[-1] if not bars.empty else None
+    right = last
+    if last is not None and not pick.get("exit_date"):
+        right = pd.bdate_range(pd.Timestamp(last), periods=6)[-1].date()
+    labels: list[tuple[float, str, str]] = []
+    if support is not None and right is not None:
+        start, level = support
         fig.add_trace(
             go.Scatter(
-                x=[bars["date"].iloc[0], bars["date"].iloc[-1]], y=[support, support],
-                name=f"Support {support:.2f}", mode="lines",
-                line={"color": SUPPORT, "width": 1.5, "dash": "dot"},
-                hovertemplate=f"Support {support:.2f}<extra></extra>",
+                x=[start, right], y=[level, level], name="Support", mode="lines",
+                line={"color": SUPPORT, "width": 2, "dash": "dot"},
+                hovertemplate=f"Support {level:.2f}<extra></extra>",
             )
         )  # fmt: skip
-    if not history.empty:
+        labels.append((level, f"Support {level:.2f}", SUPPORT))
+    stop_x, stop_y = _stop_steps(pick, history, right)
+    if stop_x:
         fig.add_trace(
             go.Scatter(
-                x=history["date"], y=history["stop"], name="Stop", mode="lines",
+                x=stop_x, y=stop_y, name="Stop", mode="lines",
                 line={"color": TEAL, "width": 2, "dash": "dash", "shape": "hv"},
                 hovertemplate="%{x|%b %d, %Y}<br>Stop %{y:.2f}<extra></extra>",
             )
+        )  # fmt: skip
+        labels.append((stop_y[-1], f"Stop {stop_y[-1]:.2f}", TEAL))
+    for level, text, color in labels:
+        fig.add_annotation(
+            x=right, y=level, text=text, showarrow=False, xanchor="left", xshift=4,
+            font={"color": color, "size": 12},
         )  # fmt: skip
     markers = [
         ("Signal", pick.get("signal_date"), pick.get("signal_close"), "circle-open", SLATE),
@@ -84,8 +102,8 @@ def pick_chart(
     fig.update_layout(
         template="plotly_white",
         height=460,
-        margin={"l": 10, "r": 10, "t": 70, "b": 10},
-        legend={"orientation": "h", "y": 1.02, "yanchor": "bottom", "x": 0},
+        margin={"l": 10, "r": 90, "t": 50, "b": 10},
+        legend={"orientation": "h", "y": -0.08, "yanchor": "top", "x": 0},
         hovermode="x unified",
         title={"text": title, "x": 0, "y": 0.98, "font": {"color": SLATE}},
         xaxis_rangeslider_visible=False,
@@ -93,6 +111,23 @@ def pick_chart(
     fig.update_xaxes(gridcolor=GRID, rangebreaks=[{"bounds": ["sat", "mon"]}])
     fig.update_yaxes(gridcolor=GRID, tickformat=".2f")
     return fig
+
+
+def _stop_steps(pick: dict, history: pd.DataFrame, right: date | None) -> tuple[list, list]:
+    """The stop over time as step points: the first stop from the entry day, each evening's
+    stop from that day on, held to `right` (or to the exit)."""
+    if not pick.get("entry_date") or pick.get("initial_stop") is None:
+        return [], []
+    xs = [date.fromisoformat(pick["entry_date"])]
+    ys = [float(pick["initial_stop"])]
+    for d, stop in zip(history["date"], history["stop"], strict=True):
+        xs.append(d)
+        ys.append(float(stop))
+    end = date.fromisoformat(pick["exit_date"]) if pick.get("exit_date") else right
+    if end is not None and end > xs[-1]:
+        xs.append(end)
+        ys.append(ys[-1])
+    return xs, ys
 
 
 def sctr_scale_html(marker: float | None = None, label: str = "") -> str:

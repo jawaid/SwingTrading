@@ -57,7 +57,7 @@ bars, history = data.pick_chart_data(
     conn, pick, ema_periods=(settings.setup.trend_ema_period, settings.ranking.long_ema_period)
 )
 fig = charts.pick_chart(
-    bars, pick, history, data.company(conn, pick["ticker"]), data.support_level(pick)
+    bars, pick, history, data.company(conn, pick["ticker"]), data.support_level(pick, bars)
 )
 st.plotly_chart(fig, use_container_width=True)
 details = data.setup_details(pick)

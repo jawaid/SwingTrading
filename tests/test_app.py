@@ -1,8 +1,10 @@
 """Smoke tests: every app screen renders, empty and with picks, without errors."""
 
 import json
+from datetime import date
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import yaml
 from streamlit.testing.v1 import AppTest
@@ -139,11 +141,32 @@ def test_pick_chart_moving_averages_support_and_title(settings_file):
     plain, _ = data.pick_chart_data(conn, pick)
     assert list(bars["date"]) == list(plain["date"])  # warm-up bars are not shown
     assert bars["ema_10"].notna().all() and bars["ema_20"].notna().all()
-    fig = charts.pick_chart(bars, pick, history, "Acme Inc · Widgets", data.support_level(pick))
+    support = data.support_level(pick, bars)
+    window = bars[bars["date"] <= date.fromisoformat(pick["signal_date"])]
+    assert support == (window.loc[window["low"].idxmin(), "date"], 95.5)
+    fig = charts.pick_chart(bars, pick, history, "Acme Inc · Widgets", support)
     names = [t.name for t in fig.data]
-    assert "10 EMA" in names and "20 EMA" in names and "Support 95.50" in names
+    assert "10 EMA" in names and "20 EMA" in names and "Support" in names
+    line = next(t for t in fig.data if t.name == "Support")
+    assert line.x[0] == support[0] and list(line.y) == [95.5, 95.5]
+    assert {a.text for a in fig.layout.annotations} >= {"Support 95.50"}
     assert "Acme Inc · Widgets" in fig.layout.title.text
     conn.close()
+
+
+def test_stop_line_starts_at_entry_with_the_first_stop():
+    pick = {"ticker": "X", "signal_date": "2026-10-30", "entry_date": "2026-11-02",
+            "entry_price": 100.0, "initial_stop": 90.0, "exit_date": None}  # fmt: skip
+    bars = pd.DataFrame(
+        {"date": [date(2026, 10, 30), date(2026, 11, 2)], "open": [99.0, 100.0],
+         "high": [101.0, 103.0], "low": [98.0, 99.0], "close": [100.0, 102.0]}
+    )  # fmt: skip
+    history = pd.DataFrame({"date": [date(2026, 11, 2)], "close": [102.0], "stop": [92.0]})
+    fig = charts.pick_chart(bars, pick, history)
+    stop = next(t for t in fig.data if t.name == "Stop")
+    assert list(stop.y) == [90.0, 92.0, 92.0]  # first stop, raised that evening, held
+    assert stop.x[0] == date(2026, 11, 2) and stop.x[-1] > date(2026, 11, 2)
+    assert {a.text for a in fig.layout.annotations} == {"Stop 92.00"}
 
 
 def test_company_name_and_industry(settings_file):
