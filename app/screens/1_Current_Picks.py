@@ -45,7 +45,8 @@ event = st.dataframe(
         "support": st.column_config.NumberColumn(
             "Support",
             format="%.2f",
-            help="Nearest floor: the pullback low, raised to each high it has broken above",
+            help="Nearest confirmed floor below the last close. Blank: price has closed below "
+            "every support level.",
         ),
         "distance_to_stop_pct": st.column_config.NumberColumn("To stop", format="%.1f%%"),
         "open_pl_pct": st.column_config.NumberColumn("Open P/L", format="%+.1f%%"),

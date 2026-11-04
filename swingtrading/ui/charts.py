@@ -17,7 +17,7 @@ SCTR_GRADIENT = f"linear-gradient(90deg, {RED} 0%, {AMBER} 50%, {TEAL} 100%)"
 
 EMA_COLORS = ["#7F9CF5", "#B794F4"]  # shorter, longer moving average
 SUPPORT = "#4A5568"
-PULLBACK_LOW = "#A0AEC0"  # the setup's pullback low, once support has moved above it
+PULLBACK_LOW = "#A0AEC0"  # the pullback low once support has moved above it, or broken
 
 
 def pick_chart(
@@ -32,7 +32,8 @@ def pick_chart(
     exit markers, the stepped dashed stop line and a dotted support line, each labelled
     with its level at the right. When support has moved up (`support_now` above the
     pullback low `support`), the pullback low stays as a lighter dotted line and the
-    current support is drawn from the day it broke out."""
+    current support is drawn from the day it took effect. When support is broken
+    (`support_now` None), the pullback low is drawn lighter as "Broken support"."""
     fig = go.Figure()
     fig.add_trace(
         go.Candlestick(
@@ -61,11 +62,15 @@ def pick_chart(
         right = pd.bdate_range(pd.Timestamp(last), periods=6)[-1].date()
     labels: list[tuple[float, str, str]] = []
     moved = support is not None and support_now is not None and support_now[1] > support[1]
+    broken = support is not None and support_now is None
     if support is not None and right is not None:
         start, level = support
-        name, color, width = (
-            ("Pullback low", PULLBACK_LOW, 1.5) if moved else ("Support", SUPPORT, 2)
-        )
+        if broken:
+            name, color, width = "Broken support", PULLBACK_LOW, 1.5
+        elif moved:
+            name, color, width = "Pullback low", PULLBACK_LOW, 1.5
+        else:
+            name, color, width = "Support", SUPPORT, 2
         fig.add_trace(
             go.Scatter(
                 x=[start, right], y=[level, level], name=name, mode="lines",
@@ -94,10 +99,11 @@ def pick_chart(
             )
         )  # fmt: skip
         labels.append((stop_y[-1], f"Stop {stop_y[-1]:.2f}", TEAL))
+    stop_level = stop_y[-1] if stop_x else None
     for level, text, color in labels:
         fig.add_annotation(
             x=right, y=level, text=text, showarrow=False, xanchor="left", xshift=4,
-            font={"color": color, "size": 12},
+            yshift=_label_shift(level, text, stop_level), font={"color": color, "size": 12},
         )  # fmt: skip
     markers = [
         ("Signal", pick.get("signal_date"), pick.get("signal_close"), "circle-open", SLATE),
@@ -129,6 +135,14 @@ def pick_chart(
     fig.update_xaxes(gridcolor=GRID, rangebreaks=[{"bounds": ["sat", "mon"]}])
     fig.update_yaxes(gridcolor=GRID, tickformat=".2f")
     return fig
+
+
+def _label_shift(level: float, text: str, stop: float | None) -> int:
+    """Pixels to move a support or pullback-low label so it doesn't print on top of the
+    stop label: within about 1% of the stop, it moves below it (or above, if higher)."""
+    if stop is None or text.startswith("Stop") or abs(level - stop) > 0.01 * stop:
+        return 0
+    return 14 if level > stop else -14
 
 
 def _stop_steps(pick: dict, history: pd.DataFrame, right: date | None) -> tuple[list, list]:
