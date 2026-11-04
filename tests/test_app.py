@@ -12,7 +12,7 @@ from streamlit.testing.v1 import AppTest
 from swingtrading import db
 from swingtrading.config import DEFAULT_SETTINGS_PATH, PROJECT_ROOT, load_settings
 from swingtrading.prices import save_bars
-from swingtrading.ui import charts, data, settings_form
+from swingtrading.ui import charts, data, settings_form, tables
 from tests.fixtures.synthetic import setup_frame
 
 PAGES = sorted((PROJECT_ROOT / "app" / "screens").glob("*.py"))
@@ -145,7 +145,8 @@ def test_pick_chart_moving_averages_support_and_title(settings_file):
     support = data.support_level(pick, bars)
     window = bars[bars["date"] <= date.fromisoformat(pick["signal_date"])]
     assert support == (window.loc[window["low"].idxmin(), "date"], 95.5)
-    fig = charts.pick_chart(bars, pick, history, "Acme Inc · Widgets", support)
+    # Support still in effect (as the pop-up passes it): drawn as the dark Support line.
+    fig = charts.pick_chart(bars, pick, history, "Acme Inc · Widgets", support, support)
     names = [t.name for t in fig.data]
     assert "10 EMA" in names and "20 EMA" in names and "Support" in names
     line = next(t for t in fig.data if t.name == "Support")
@@ -305,56 +306,153 @@ def test_chart_opens_from_a_button(settings_file):
     assert show.disabled  # until a row is ticked
 
 
-def test_current_picks_support_is_the_pullback_low(settings_file):
+def test_current_picks_support_shows_broken_only_when_levels_exist(settings_file):
     _seed(settings_file)
     s, conn = data.open_db(load_settings(settings_file))
+    # The seeded pick has no pullback low in its setup details: empty, not Broken.
+    row = data.current_picks(conn).iloc[0]
+    assert pd.isna(row["support"]) and not row["support_broken"]
+    # PAYC's stored levels (pullback low 255.67) sit far above the seeded ~100 prices, and
+    # its swing-high date has no bar here, so the stored values are used: the price is
+    # below every level, so support is broken. The number stays for sorting.
     conn.execute("UPDATE picks SET setup_details = ? WHERE ticker = 'AAA'",
                  (json.dumps(PAYC_DETAILS),))  # fmt: skip
     df = data.current_picks(conn)
     assert list(df.columns).index("support") == list(df.columns).index("current_stop") + 1
-    assert df.iloc[0]["support"] == pytest.approx(255.67)
+    assert df.iloc[0]["support_broken"] and df.iloc[0]["support"] == pytest.approx(255.67)
     conn.close()
+
+
+def test_support_column_text():
+    df = pd.DataFrame({"ticker": ["COP", "NEW", "MANH"], "support": [147.47, None, 232.98]})
+    styler = tables.support_text(df.style, pd.Series([True, False, False]))
+    cells = [line.split() for line in styler.to_string().splitlines()[1:]]
+    assert [c[-1] for c in cells] == ["Broken", "NEW", "232.98"]  # NEW's support is blank
+    assert df["support"].dtype == float  # still numbers underneath, so it sorts by them
 
 
 def _support_bars(highs, closes):
     days = pd.bdate_range("2026-10-26", periods=len(highs)).date
-    return pd.DataFrame({"date": days, "high": highs, "low": [c - 1 for c in closes],
-                         "close": closes})  # fmt: skip
+    return pd.DataFrame({"date": days, "open": closes, "high": highs,
+                         "low": [c - 1 for c in closes], "close": closes})  # fmt: skip
 
 
-SUPPORT_PICK = {"signal_date": "2026-10-29", "setup_details": json.dumps(
-    {"swing_high_date": "2026-10-26", "swing_high": 50.0, "pullback_low": 46.0})}  # fmt: skip
+# Swing high 50 on Oct 26, signal Oct 29, ATR 2: a breakout is confirmed by a close of
+# 50 + 0.5 x 2 = 51 or more. The bars' lows are close - 1, so the pullback low is 46 (Oct 28).
+SUPPORT_PICK = {"ticker": "X", "signal_date": "2026-10-29", "entry_date": None,
+                "exit_date": None, "setup_details": json.dumps(
+    {"swing_high_date": "2026-10-26", "swing_high": 50.0, "pullback_low": 46.0,
+     "atr": 2.0})}  # fmt: skip
+BASE_HIGHS, BASE_CLOSES = [50, 49, 48, 49], [49.5, 48, 47, 48.5]
+PULLBACK = (date(2026, 10, 28), 46.0)
 
 
-def test_support_moves_up_to_a_broken_high():
-    # Oct 26 high 50, dip, then closes above 50 from Oct 30.
-    bars = _support_bars([50, 49, 48, 49, 52, 53], [49.5, 48, 47, 48.5, 51, 52])
-    assert data.support_level(SUPPORT_PICK, bars)[1] == 46.0
-    assert data.support_now(SUPPORT_PICK, bars) == (date(2026, 10, 30), 50.0)
+def _check(bars, expected):
+    """support_now matches `expected` and is never above the last close."""
+    got = data.support_now(SUPPORT_PICK, bars)
+    assert got == expected
+    assert got is None or got[1] <= bars["close"].iloc[-1]
+    return got
 
 
-def test_support_climbs_to_a_later_swing_high_and_falls_back():
-    # Breaks 50, peaks at 55 on Nov 2, dips, then closes above 55 on Nov 6.
-    highs = [50, 49, 48, 49, 52, 55, 53, 52, 54, 57]
-    closes = [49.5, 48, 47, 48.5, 51, 54, 52, 51, 53, 56]
-    assert data.support_now(SUPPORT_PICK, _support_bars(highs, closes)) == (date(2026, 11, 6), 55)
+def test_close_just_above_the_high_does_not_move_support():
+    # Oct 30 closes at 50.6 and Nov 2 at 50.9: above 50, but under 51.
+    bars = _support_bars(BASE_HIGHS + [51, 51.2], BASE_CLOSES + [50.6, 50.9])
+    assert data.support_level(SUPPORT_PICK, bars) == PULLBACK
+    _check(bars, PULLBACK)
+
+
+def test_close_half_an_atr_above_the_high_confirms_it():
+    bars = _support_bars(BASE_HIGHS + [51.5, 52], BASE_CLOSES + [51, 51.5])
+    _check(bars, (date(2026, 10, 30), 50.0))  # dated on the confirming close
+
+
+LATER_HIGHS = [50, 49, 48, 49, 52, 55, 53, 52, 54, 57]
+LATER_CLOSES = [49.5, 48, 47, 48.5, 51, 54, 52, 51, 53, 56]
+
+
+def test_support_climbs_to_a_later_high_and_falls_back_through_the_levels():
+    # 50 is confirmed Oct 30. Nov 2 peaks at 55 (known Nov 4); Nov 6 closes at 56, 55 + 1.
+    _check(_support_bars(LATER_HIGHS, LATER_CLOSES), (date(2026, 11, 6), 55.0))
     # Back under 55 but above 50: the 50 floor again.
-    fell = _support_bars(highs + [55], closes + [52])
-    assert data.support_now(SUPPORT_PICK, fell) == (date(2026, 10, 30), 50.0)
-    # Under 50 too: back to the pullback low.
-    deep = _support_bars(highs + [55], closes + [48])
-    assert data.support_now(SUPPORT_PICK, deep)[1] == 46.0
+    _check(_support_bars(LATER_HIGHS + [55], LATER_CLOSES + [52]), (date(2026, 10, 30), 50.0))
+    # Under 50 too: the pullback low.
+    _check(_support_bars(LATER_HIGHS + [55], LATER_CLOSES + [48]), PULLBACK)
+
+
+def test_close_below_the_pullback_low_breaks_support():
+    _check(_support_bars(LATER_HIGHS + [55], LATER_CLOSES + [45]), None)
+    _check(_support_bars(BASE_HIGHS + [47], BASE_CLOSES + [45.5]), None)
+
+
+def test_higher_low_after_the_signal_raises_support_without_look_ahead():
+    # After the signal: Oct 30 up to 50.5 (under 51), Nov 2 dips to a 47.2 low, then turns up.
+    highs = BASE_HIGHS + [51, 49, 50, 50.7]
+    closes = BASE_CLOSES + [50.5, 48.2, 49.5, 50.2]
+    # Through Nov 3 the Nov 2 low has only one session after it: not known yet.
+    _check(_support_bars(highs[:-1], closes[:-1]), PULLBACK)
+    # Known on Nov 4, two sessions after it formed, above the 46 support then in effect.
+    _check(_support_bars(highs, closes), (date(2026, 11, 4), 47.2))
+
+
+def test_levels_come_from_adjusted_bars_not_stored_details():
+    # A later 2-for-1 split halves every stored bar; the details still say 50, 46 and ATR 2.
+    bars = _support_bars(BASE_HIGHS + [51.5, 52], BASE_CLOSES + [51, 51.5])
+    half = bars.assign(**{c: bars[c] / 2 for c in ("open", "high", "low", "close")})
+    assert data.support_level(SUPPORT_PICK, half) == (date(2026, 10, 28), 23.0)
+    # Swing high 25, ATR 1: Oct 30's close of 25.5 is exactly 25 + 0.5 x 1.
+    _check(half, (date(2026, 10, 30), 25.0))
+    # Without the adjustment the stored 50 would sit far above the 25.75 close.
+
+
+def test_support_is_never_above_the_last_close():
+    cases = [
+        (BASE_HIGHS + [51, 51.2], BASE_CLOSES + [50.6, 50.9]),
+        (BASE_HIGHS + [51.5, 52], BASE_CLOSES + [51, 51.5]),
+        (LATER_HIGHS, LATER_CLOSES),
+        (LATER_HIGHS + [55], LATER_CLOSES + [52]),
+        (LATER_HIGHS + [55], LATER_CLOSES + [48]),
+        (LATER_HIGHS + [55], LATER_CLOSES + [45]),
+        (BASE_HIGHS + [51, 49, 50, 50.7], BASE_CLOSES + [50.5, 48.2, 49.5, 50.2]),
+    ]
+    for highs, closes in cases:
+        for n in range(len(BASE_HIGHS), len(highs) + 1):  # every day, not just the last
+            bars = _support_bars(highs[:n], closes[:n])
+            got = data.support_now(SUPPORT_PICK, bars)
+            assert got is None or got[1] <= closes[n - 1], (highs[:n], got)
 
 
 def test_chart_shows_pullback_low_and_raised_support():
-    pick = {**SUPPORT_PICK, "ticker": "X", "entry_date": None, "exit_date": None}
-    bars = _support_bars([50, 49, 48, 49, 52, 53], [49.5, 48, 47, 48.5, 51, 52]).assign(
-        open=lambda d: d["close"]
-    )
+    bars = _support_bars(BASE_HIGHS + [51.5, 52], BASE_CLOSES + [51, 51.5])
     history = pd.DataFrame(columns=["date", "close", "stop"])
-    fig = charts.pick_chart(bars, pick, history, "", data.support_level(pick, bars),
-                            data.support_now(pick, bars))  # fmt: skip
+    fig = charts.pick_chart(bars, SUPPORT_PICK, history, "",
+                            data.support_level(SUPPORT_PICK, bars),
+                            data.support_now(SUPPORT_PICK, bars))  # fmt: skip
     lines = {t.name: t for t in fig.data}
     assert lines["Support"].y[0] == 50.0 and lines["Support"].x[0] == date(2026, 10, 30)
     assert lines["Pullback low"].y[0] == 46.0
     assert {a.text for a in fig.layout.annotations} == {"Support 50.00", "Pullback low 46.00"}
+
+
+def test_chart_draws_broken_support_lighter():
+    bars = _support_bars(BASE_HIGHS + [47], BASE_CLOSES + [45.5])
+    history = pd.DataFrame(columns=["date", "close", "stop"])
+    fig = charts.pick_chart(bars, SUPPORT_PICK, history, "",
+                            data.support_level(SUPPORT_PICK, bars), None)  # fmt: skip
+    line = next(t for t in fig.data if t.name == "Broken support")
+    assert line.line.color == charts.PULLBACK_LOW and line.y[0] == 46.0
+    assert "Support" not in {t.name for t in fig.data}
+    assert {a.text for a in fig.layout.annotations} == {"Broken support 46.00"}
+
+
+def test_support_label_moves_off_a_nearby_stop_label():
+    # Like MANH: stop 233.15 and support 232.98 are 0.07% apart.
+    pick = {"ticker": "X", "signal_date": "2026-10-29", "entry_date": "2026-10-30",
+            "entry_price": 249.42, "initial_stop": 228.67, "exit_date": None}  # fmt: skip
+    bars = _support_bars([240, 236, 233, 250, 255], [238, 235, 234, 248, 255])
+    history = pd.DataFrame({"date": [date(2026, 10, 30)], "close": [255.0], "stop": [233.15]})
+    fig = charts.pick_chart(bars, pick, history, "", (date(2026, 10, 28), 232.98),
+                            (date(2026, 10, 28), 232.98))  # fmt: skip
+    shift = {a.text: a.yshift for a in fig.layout.annotations}
+    assert shift == {"Stop 233.15": 0, "Support 232.98": -14}
+    assert charts._label_shift(240.0, "Support 240.00", 233.15) == 0  # 2.9% apart

@@ -27,9 +27,13 @@ c3.metric(
 )
 
 STATUS_TEXT = {"signal": "Pending entry", "open": "Open", "exit_pending": "Exit pending"}
+# support_broken stays as its own column so the table's CSV download marks broken picks:
+# the download exports Support's number (the broken pullback low), not the "Broken" text.
 view = df.assign(status=df["status"].map(STATUS_TEXT)).drop(columns=["id"])
 event = st.dataframe(
-    tables.red_negatives(view, ["distance_to_stop_pct", "open_pl_pct"]),
+    tables.support_text(
+        tables.red_negatives(view, ["distance_to_stop_pct", "open_pl_pct"]), df["support_broken"]
+    ),
     hide_index=True,
     use_container_width=True,
     on_select="rerun",
@@ -42,10 +46,16 @@ event = st.dataframe(
         "entry_price": st.column_config.NumberColumn("Entry", format="%.2f"),
         "current_price": st.column_config.NumberColumn("Price", format="%.2f"),
         "current_stop": st.column_config.NumberColumn("Stop", format="%.2f"),
+        # No format here: the Styler formats Support so "Broken" can show.
         "support": st.column_config.NumberColumn(
             "Support",
-            format="%.2f",
-            help="Nearest floor: the pullback low, raised to each high it has broken above",
+            help="Nearest confirmed floor below the last close. Broken: price has closed "
+            "below every support level.",
+        ),
+        "support_broken": st.column_config.CheckboxColumn(
+            "Broken",
+            width="small",
+            help="Ticked when the price has closed below every support level",
         ),
         "distance_to_stop_pct": st.column_config.NumberColumn("To stop", format="%.1f%%"),
         "open_pl_pct": st.column_config.NumberColumn("Open P/L", format="%+.1f%%"),

@@ -48,13 +48,16 @@ def _sessions_held(start: str | None, end: date | None) -> int | None:
 
 
 CURRENT_COLUMNS = ["id", "ticker", "status", "signal_date", "entry_date", "entry_price",
-                   "current_price", "current_stop", "support", "distance_to_stop_pct",
-                   "open_pl_pct", "sctr", "days_held", "setup_score"]  # fmt: skip
+                   "current_price", "current_stop", "support", "support_broken",
+                   "distance_to_stop_pct", "open_pl_pct", "sctr", "days_held",
+                   "setup_score"]  # fmt: skip
 
 
 def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
     """Signal, open and exit-pending picks with their latest price, P/L and SCTR. Support is
-    where it stands now (`support_now`), the same level the chart labels."""
+    where it stands now (`support_now`), the same level the chart labels. When the price
+    has closed below every level, `support_broken` is True and support holds the broken
+    pullback low; with no setup data it is NaN."""
     rows = picks(conn, db.ACTIVE_PICK_STATUSES)
     if not rows:
         return pd.DataFrame(columns=CURRENT_COLUMNS)
@@ -66,7 +69,8 @@ def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
     )
     out = []
     for p in rows:
-        support = support_now(p, bars[bars["ticker"] == p["ticker"]].reset_index(drop=True))
+        own = bars[bars["ticker"] == p["ticker"]].reset_index(drop=True)
+        support, base = support_now(p, own), support_level(p, own)
         last_date, last_close = latest.get(p["ticker"], (None, None))
         entry, stop = p["entry_price"], p["current_stop"]
         if p["entry_date"] and last_date and last_date < date.fromisoformat(p["entry_date"]):
@@ -76,7 +80,10 @@ def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
                 **{k: p[k] for k in ("id", "ticker", "status", "signal_date", "entry_date",
                                      "entry_price", "current_stop", "setup_score")},
                 "current_price": last_close,
-                "support": support[1] if support else None,
+                # Broken (levels exist, price closed below them all): keep the pullback
+                # low so the column still sorts by price; the table shows "Broken".
+                "support": support[1] if support else base[1] if base else None,
+                "support_broken": support is None and base is not None,
                 "distance_to_stop_pct": (last_close / stop - 1) * 100
                 if stop and last_close
                 else None,
@@ -149,54 +156,114 @@ def company(conn: sqlite3.Connection, ticker: str) -> str:
     return " · ".join(part for part in (name, group) if part)
 
 
-def support_level(pick: dict, bars: pd.DataFrame) -> tuple[date, float] | None:
-    """The setup's pullback low (the level the stock bounced from before the signal) and
-    the day it was made: the lowest low after the swing high, up to the signal day."""
+PIVOT_BARS = 2  # a pivot is the highest high (or lowest low) of 2 sessions either side
+BREAKOUT_ATR_BUFFER = 0.5  # a close this many ATRs above a ceiling confirms the breakout
+
+
+def _setup_levels(pick: dict, bars: pd.DataFrame) -> dict | None:
+    """The setup's swing high, pullback low (and its day) and ATR, recomputed from `bars`
+    on the stored dates so they follow any later split or dividend adjustment. The ATR is
+    scaled by the same factor as the swing high. Falls back to the stored values when a
+    needed bar is missing. None without a stored pullback low."""
     details = setup_details(pick)
     if details.get("pullback_low") is None:
         return None
-    level = float(details["pullback_low"])
     signal = date.fromisoformat(pick["signal_date"])
-    high_day = details.get("swing_high_date")
-    after = date.fromisoformat(high_day) if high_day else date.min
+    high_day = (
+        date.fromisoformat(details["swing_high_date"]) if details.get("swing_high_date") else None
+    )
+    after = high_day or date.min
     window = bars[(bars["date"] > after) & (bars["date"] <= signal)]
-    day = window.loc[window["low"].idxmin(), "date"] if not window.empty else signal
-    return day, level
+    i = window["low"].idxmin() if not window.empty else None
+    stored = {
+        "high_day": high_day,
+        "swing_high": details.get("swing_high"),
+        "pullback_low": float(details["pullback_low"]),
+        "low_day": window.loc[i, "date"] if i is not None else signal,
+        "atr": details.get("atr"),
+    }
+    at_high = bars[bars["date"] == high_day] if high_day else bars.iloc[0:0]
+    if at_high.empty or i is None or not details.get("swing_high"):
+        return stored
+    swing_high = float(at_high["high"].iloc[0])
+    atr = details.get("atr")
+    return {
+        "high_day": high_day,
+        "swing_high": swing_high,
+        "pullback_low": float(window.loc[i, "low"]),
+        "low_day": window.loc[i, "date"],
+        "atr": float(atr) * swing_high / float(details["swing_high"]) if atr else None,
+    }
 
 
-PIVOT_BARS = 2  # a swing high is the highest high of the 2 sessions either side of it
+def support_level(pick: dict, bars: pd.DataFrame) -> tuple[date, float] | None:
+    """The setup's pullback low (the level the stock bounced from before the signal) and
+    the day it was made: the lowest bar low after the swing high, up to the signal day."""
+    levels = _setup_levels(pick, bars)
+    return None if levels is None else (levels["low_day"], levels["pullback_low"])
 
 
 def support_now(pick: dict, bars: pd.DataFrame) -> tuple[date, float] | None:
-    """Support as it stands on the last bar, and the day it took that level. It starts at
-    the pullback low; each time a close clears a ceiling (the setup's swing high, or a
-    later swing high) that ceiling becomes the new floor. The highest broken ceiling at or
-    below the last close wins; if the price has fallen back under all of them, it is the
-    pullback low again. Display only: no trading rule uses it."""
-    base = support_level(pick, bars)
-    details = setup_details(pick)
-    if base is None or bars.empty or "swing_high" not in details:
-        return base
-    high_day = date.fromisoformat(details["swing_high_date"])
-    b = bars[bars["date"] >= high_day].reset_index(drop=True)
-    if b.empty:
-        return base
-    ceilings = [(0, float(details["swing_high"]))]
-    k = PIVOT_BARS
-    for i in range(1, len(b) - k):
-        h = b["high"].iloc[i]
-        if (
-            h > b["high"].iloc[max(0, i - k) : i].max()
-            and h >= b["high"].iloc[i + 1 : i + k + 1].max()
-        ):
-            ceilings.append((i + k, float(h)))  # known as a swing high only k sessions later
+    """Support on the last bar, and the day that level took effect; None when the price has
+    closed below every support level (support is broken). Display only: no trading rule
+    uses it.
+
+    Candidates, each from the day it takes effect:
+    - the pullback low;
+    - confirmed broken ceilings: the setup's swing high and any later pivot high (known
+      PIVOT_BARS sessions after it forms). A ceiling is confirmed by the first close at or
+      above ceiling + BREAKOUT_ATR_BUFFER x ATR after it is known, and its level is the
+      ceiling itself;
+    - higher lows: pivot lows after the signal (known PIVOT_BARS sessions after they form),
+      counted only if higher than the support in effect on the day they become known.
+    Support is the highest candidate at or below the last close."""
+    levels = _setup_levels(pick, bars)
+    if levels is None or bars.empty:
+        return None
+    floor = (levels["low_day"], levels["pullback_low"])
+    b = bars.reset_index(drop=True)
     last_close = float(b["close"].iloc[-1])
-    best = base
-    for known, level in ceilings:
-        above = b.index[(b.index > known) & (b["close"] > level)]
-        if len(above) and base[1] < level <= last_close and level > best[1]:
-            best = (b["date"].iloc[above[0]], level)
-    return best
+    high_day, atr = levels["high_day"], levels["atr"]
+    if high_day is None or not atr or levels["swing_high"] is None:
+        return floor if floor[1] <= last_close else None
+    signal = date.fromisoformat(pick["signal_date"])
+    dates, high, low, close = list(b["date"]), b["high"], b["low"], b["close"]
+    start = next((i for i, d in enumerate(dates) if d >= high_day), len(b))
+    k = PIVOT_BARS
+
+    # Ceilings: (index known from, level). The setup's swing high is known on its own day.
+    ceilings = [(start, float(levels["swing_high"]))]
+    for i in range(start + 1, len(b) - k):
+        h = high.iloc[i]
+        if h > high.iloc[max(start, i - k) : i].max() and h >= high.iloc[i + 1 : i + k + 1].max():
+            ceilings.append((i + k, float(h)))
+    # Higher lows: (index known from, level, index formed), after the signal.
+    lows = []
+    for i in range(start + k, len(b) - k):
+        lo = low.iloc[i]
+        if (dates[i] > signal and lo < low.iloc[i - k : i].min()
+                and lo <= low.iloc[i + 1 : i + k + 1].min()):  # fmt: skip
+            lows.append((i + k, float(lo)))
+
+    # Walk forward: each candidate joins on the day it takes effect.
+    active = [floor]
+    confirmed = set()
+    for j in range(start, len(b)):
+        for n, (known, level) in enumerate(ceilings):
+            if (
+                n not in confirmed
+                and j > known
+                and close.iloc[j] >= level + BREAKOUT_ATR_BUFFER * atr
+            ):
+                confirmed.add(n)
+                active.append((dates[j], level))
+        for known, level in lows:
+            if known == j:
+                in_effect = [lv for _, lv in active if lv <= close.iloc[j]]
+                if not in_effect or level > max(in_effect):
+                    active.append((dates[j], level))
+    below = [c for c in active if c[1] <= last_close]
+    return max(below, key=lambda c: c[1]) if below else None
 
 
 @dataclass
