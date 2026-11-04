@@ -12,7 +12,7 @@ from streamlit.testing.v1 import AppTest
 from swingtrading import db
 from swingtrading.config import DEFAULT_SETTINGS_PATH, PROJECT_ROOT, load_settings
 from swingtrading.prices import save_bars
-from swingtrading.ui import charts, data, settings_form
+from swingtrading.ui import charts, data, settings_form, tables
 from tests.fixtures.synthetic import setup_frame
 
 PAGES = sorted((PROJECT_ROOT / "app" / "screens").glob("*.py"))
@@ -306,18 +306,29 @@ def test_chart_opens_from_a_button(settings_file):
     assert show.disabled  # until a row is ticked
 
 
-def test_current_picks_support_is_blank_below_every_level(settings_file):
+def test_current_picks_support_shows_broken_only_when_levels_exist(settings_file):
     _seed(settings_file)
     s, conn = data.open_db(load_settings(settings_file))
+    # The seeded pick has no pullback low in its setup details: empty, not Broken.
+    row = data.current_picks(conn).iloc[0]
+    assert pd.isna(row["support"]) and not row["support_broken"]
     # PAYC's stored levels (pullback low 255.67) sit far above the seeded ~100 prices, and
     # its swing-high date has no bar here, so the stored values are used: the price is
-    # below every level, so support is broken and shows blank.
+    # below every level, so support is broken. The number stays for sorting.
     conn.execute("UPDATE picks SET setup_details = ? WHERE ticker = 'AAA'",
                  (json.dumps(PAYC_DETAILS),))  # fmt: skip
     df = data.current_picks(conn)
     assert list(df.columns).index("support") == list(df.columns).index("current_stop") + 1
-    assert pd.isna(df.iloc[0]["support"])
+    assert df.iloc[0]["support_broken"] and df.iloc[0]["support"] == pytest.approx(255.67)
     conn.close()
+
+
+def test_support_column_text():
+    df = pd.DataFrame({"ticker": ["COP", "NEW", "MANH"], "support": [147.47, None, 232.98]})
+    styler = tables.support_text(df.style, pd.Series([True, False, False]))
+    cells = [line.split() for line in styler.to_string().splitlines()[1:]]
+    assert [c[-1] for c in cells] == ["Broken", "NEW", "232.98"]  # NEW's support is blank
+    assert df["support"].dtype == float  # still numbers underneath, so it sorts by them
 
 
 def _support_bars(highs, closes):

@@ -48,14 +48,16 @@ def _sessions_held(start: str | None, end: date | None) -> int | None:
 
 
 CURRENT_COLUMNS = ["id", "ticker", "status", "signal_date", "entry_date", "entry_price",
-                   "current_price", "current_stop", "support", "distance_to_stop_pct",
-                   "open_pl_pct", "sctr", "days_held", "setup_score"]  # fmt: skip
+                   "current_price", "current_stop", "support", "support_broken",
+                   "distance_to_stop_pct", "open_pl_pct", "sctr", "days_held",
+                   "setup_score"]  # fmt: skip
 
 
 def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
     """Signal, open and exit-pending picks with their latest price, P/L and SCTR. Support is
-    where it stands now (`support_now`), the same level the chart labels; blank (NaN) when
-    the price has closed below every support level."""
+    where it stands now (`support_now`), the same level the chart labels. When the price
+    has closed below every level, `support_broken` is True and support holds the broken
+    pullback low; with no setup data it is NaN."""
     rows = picks(conn, db.ACTIVE_PICK_STATUSES)
     if not rows:
         return pd.DataFrame(columns=CURRENT_COLUMNS)
@@ -67,7 +69,8 @@ def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
     )
     out = []
     for p in rows:
-        support = support_now(p, bars[bars["ticker"] == p["ticker"]].reset_index(drop=True))
+        own = bars[bars["ticker"] == p["ticker"]].reset_index(drop=True)
+        support, base = support_now(p, own), support_level(p, own)
         last_date, last_close = latest.get(p["ticker"], (None, None))
         entry, stop = p["entry_price"], p["current_stop"]
         if p["entry_date"] and last_date and last_date < date.fromisoformat(p["entry_date"]):
@@ -77,7 +80,10 @@ def current_picks(conn: sqlite3.Connection) -> pd.DataFrame:
                 **{k: p[k] for k in ("id", "ticker", "status", "signal_date", "entry_date",
                                      "entry_price", "current_stop", "setup_score")},
                 "current_price": last_close,
-                "support": support[1] if support else None,
+                # Broken (levels exist, price closed below them all): keep the pullback
+                # low so the column still sorts by price; the table shows "Broken".
+                "support": support[1] if support else base[1] if base else None,
+                "support_broken": support is None and base is not None,
                 "distance_to_stop_pct": (last_close / stop - 1) * 100
                 if stop and last_close
                 else None,
